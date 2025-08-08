@@ -4,8 +4,7 @@
     {
       "type": "node",
       "request": "launch",
-      "name": "Debug Auth API",
-      "skipFiles": ["<node_internals>/**"],
+      "name": "Launch Server",
       "program": "${workspaceFolder}/src/server.js",
       "envFile": "${workspaceFolder}/.env"
     }
