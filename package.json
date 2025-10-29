@@ -4,7 +4,12 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "nodemon src/server.js",
+    "start": "node src/server.js",
+    "test": "echo \"No tests yet\" && exit 0",
+    "db:migrate": "sequelize-cli db:migrate",
+    "db:migrate:undo": "sequelize-cli db:migrate:undo",
+    "db:migrate:undo:all": "sequelize-cli db:migrate:undo:all"
   },
   "keywords": [],
   "author": "",
@@ -12,20 +17,22 @@
   "type": "commonjs",
   "dependencies": {
     "axios": "^1.11.0",
+    "compression": "^1.7.4",
     "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
     "dotenv": "^17.2.1",
     "express": "^5.1.0",
+    "helmet": "^7.1.0",
     "js-cookie": "^3.0.5",
     "jsonwebtoken": "^9.0.2",
     "passport": "^0.7.0",
     "passport-google-oauth20": "^2.0.0",
     "pg": "^8.16.3",
     "pg-hstore": "^2.3.4",
-    "react-google-login": "^5.2.2",
-    "sequelize": "^6.37.7",
-    "sequelize-cli": "^6.6.3"
+    "sequelize": "^6.37.7"
   },
   "devDependencies": {
-    "nodemon": "^3.1.10"
+    "nodemon": "^3.1.10",
+    "sequelize-cli": "^6.6.3"
   }
 }

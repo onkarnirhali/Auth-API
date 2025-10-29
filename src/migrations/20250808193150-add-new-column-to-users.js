@@ -1,18 +1,11 @@
 'use strict';
 
 module.exports = {
-  up: async (queryInterface, Sequelize) => {
-    await queryInterface.addColumn('users', 'provider_name', {
-      type: Sequelize.STRING,
-      allowNull: true
-    }),
-    await queryInterface.addColumn('users', 'provider_id', {
-      type: Sequelize.STRING,
-      allowNull: true
-    });
+  up: async () => {
+    // No-op: merged into initial users table migration
   },
 
-  down: async (queryInterface, Sequelize) => {
-    await queryInterface.removeColumn('users', 'newColumn');
-  }
+  down: async () => {
+    // No-op: nothing to revert
+  },
 };

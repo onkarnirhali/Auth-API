@@ -1,0 +1,21 @@
+{
+  "examples": [
+    {
+      "description": "List all",
+      "url": "/api/todos"
+    },
+    {
+      "description": "Filter by status",
+      "url": "/api/todos?status=pending"
+    },
+    {
+      "description": "Search by text",
+      "url": "/api/todos?q=task"
+    },
+    {
+      "description": "Due between dates",
+      "url": "/api/todos?dueFrom=2025-11-01T00:00:00.000Z&dueTo=2025-12-01T00:00:00.000Z"
+    }
+  ]
+}
+
