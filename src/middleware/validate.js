@@ -1,9 +1,11 @@
+const { sendError } = require('../utils/http');
+
 function validationMiddleware(validator) {
   return (req, res, next) => {
     try {
       const { errors, value } = validator(req);
       if (errors && errors.length) {
-        return res.status(422).json({ error: 'Validation failed', details: errors });
+        return sendError(req, res, 422, 'Validation failed', 'VALIDATION_ERROR', { details: errors });
       }
       if (value) {
         if (value.body) req.body = value.body;
@@ -18,4 +20,3 @@ function validationMiddleware(validator) {
 }
 
 module.exports = { validationMiddleware };
-

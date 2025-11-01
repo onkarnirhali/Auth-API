@@ -1,4 +1,5 @@
 const todos = require('../services/todoService');
+const { sendError } = require('../utils/http');
 
 async function list(req, res) {
   const items = await todos.list(req.user.id, req.query);
@@ -7,7 +8,6 @@ async function list(req, res) {
 
 async function create(req, res) {
   const { title, description, status, priority, dueDate } = req.body;
-  if (!title) return res.status(422).json({ error: 'title is required' });
   const item = await todos.create(req.user.id, { title, description, status, priority, dueDate });
   res.status(201).json({ item });
 }
@@ -23,7 +23,7 @@ async function update(req, res) {
     ...(patch.dueDate !== undefined ? { due_date: patch.dueDate } : {}),
   };
   const item = await todos.update(req.user.id, id, normalized);
-  if (!item) return res.status(404).json({ error: 'Not found' });
+  if (!item) return sendError(req, res, 404, 'Todo not found', 'TODO_NOT_FOUND');
   res.json({ item });
 }
 
@@ -34,4 +34,3 @@ async function destroy(req, res) {
 }
 
 module.exports = { list, create, update, destroy };
-
