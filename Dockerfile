@@ -21,4 +21,4 @@ COPY .sequelizerc ./.sequelizerc
 # Runtime
 EXPOSE 4000
 ENTRYPOINT ["/sbin/tini", "--"]
-CMD ["node", "src/server.js"]
+CMD ["sh", "-c", "sequelize-cli db:migrate && node src/server.js"]
