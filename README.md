@@ -47,6 +47,36 @@ Services:
 - Postgres at `localhost:5432` (user/pass/db: vibecode/vibecode/vibecode_app)
 - API at `http://localhost:4000`
 
+## Deploy (Dev Cloud)
+Goal: get a stable dev URL you can use daily while iterating.
+
+Required env vars (typical)
+- `NODE_ENV=production`
+- `DISABLE_HTTPS_REDIRECT=1` (dev cloud without TLS terminator)
+- `PORT=4000` (or platform port)
+- `DB_URL=postgres://user:pass@host:5432/db`
+- `JWT_SECRET=...`
+- `GOOGLE_CLIENT_ID=...`
+- `GOOGLE_CLIENT_SECRET=...`
+- `GOOGLE_CALLBACK_URL=https://your-dev-domain/auth/google/callback` (or http if TLS off)
+- `CORS_ORIGIN=https://your-frontend.dev,http://localhost:5173`
+- `COOKIE_DOMAIN=your-dev-domain` (optional)
+
+Steps (generic Docker-based PaaS)
+1) Connect repo or push the image built from `Auth-API/Dockerfile`.
+2) Configure env vars above.
+3) Ensure container listens on `PORT` (the app reads `PORT`).
+4) Run DB migrations once:
+   - `npx sequelize-cli db:migrate`
+5) Verify `GET /healthz`, then OAuth and Todos flows.
+
+Post-deploy checklist
+- `GET /healthz` → `{ ok: true }`
+- `GET/POST /auth/refresh` and `/auth/logout` behave as expected
+- `GET /auth/me` returns user after login
+- Todos CRUD functions under `/api/todos`
+- If using HTTPS: unset `DISABLE_HTTPS_REDIRECT` and verify redirect works
+
 ## Migrations
 Sequelize CLI is used for migrations; runtime queries use `pg`.
 
