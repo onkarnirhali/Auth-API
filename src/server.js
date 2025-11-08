@@ -67,10 +67,14 @@ app.use((req, res, next) => {
 app.use((req, res, next) => {
   const redirectDisabled = process.env.DISABLE_HTTPS_REDIRECT === '1' || process.env.DISABLE_HTTPS_REDIRECT === 'true';
   if (process.env.NODE_ENV === 'production' && !redirectDisabled && !req.secure) {
+    // Skip redirect on localhost/loopback for local development even in prod image
+    const host = (req.headers.host || '').toString();
+    const isLocalHost = host.startsWith('localhost') || host.startsWith('127.0.0.1') || host.startsWith('::1');
+    if (isLocalHost) return next();
+
     // Respect X-Forwarded-Proto from proxy
     const proto = (req.headers['x-forwarded-proto'] || '').toString().split(',')[0];
     if (proto !== 'https') {
-      const host = req.headers.host;
       return res.redirect(308, `https://${host}${req.originalUrl}`);
     }
   }

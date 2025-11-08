@@ -1,0 +1,20 @@
+# syntax=docker/dockerfile:1
+FROM node:18-alpine
+
+WORKDIR /app
+ENV NODE_ENV=development
+
+# Helpful init
+RUN apk add --no-cache tini
+
+# Install deps (include dev) and sequelize-cli for migrations
+COPY package.json package-lock.json ./
+RUN npm ci && npm i -g sequelize-cli
+
+# Copy source (can be overridden by volume in compose)
+COPY . .
+
+EXPOSE 4000
+ENTRYPOINT ["/sbin/tini", "--"]
+CMD ["npm", "run", "dev"]
+

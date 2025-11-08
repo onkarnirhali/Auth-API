@@ -34,8 +34,18 @@ const handleGoogleCallback = async (req, res) => {
 
   res
     .cookie('accessToken', accessToken, { ...cookieBase, maxAge: 15 * 60 * 1000 })
-    .cookie('refreshToken', refreshToken, { ...cookieBase, maxAge: 7 * 24 * 60 * 60 * 1000 })
-    .json({ success: true })
+    .cookie('refreshToken', refreshToken, { ...cookieBase, maxAge: 7 * 24 * 60 * 60 * 1000 });
+
+  // Prefer redirect to frontend after successful login
+  const frontend = process.env.FRONTEND_URL || (process.env.CORS_ORIGIN || '').split(',')[0] || null;
+  const redirectPath = process.env.LOGIN_SUCCESS_REDIRECT_PATH || '/app';
+  if (frontend) {
+    try {
+      return res.redirect(302, `${frontend}${redirectPath}`);
+    } catch (_) {}
+  }
+  // Fallback JSON response
+  return res.json({ success: true })
 };
 
 // Handle logout

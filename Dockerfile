@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 FROM node:18-alpine AS base
 WORKDIR /app
-ENV NODE_ENV=production
+ENV NODE_ENV=development
 
 # Install minimal OS deps
 RUN apk add --no-cache tini
