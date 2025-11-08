@@ -9,13 +9,21 @@ const {
   logout,
   refreshAccessToken,
 } = require('../controllers/authController');
+const { getGoogleScopes } = require('../utils/googleScopes');
+
+const googleAuthOptions = {
+  scope: getGoogleScopes(),
+  accessType: 'offline',
+  prompt: 'consent',
+  includeGrantedScopes: true,
+};
 
 // Simple ping to verify router mount
 router.get('/ping', (req, res) => res.json({ ok: true }));
 
 // OAuth routes
 router.get('/google',
-  passport.authenticate('google', { scope: ['profile', 'email'] })
+  passport.authenticate('google', googleAuthOptions)
 );
 
 router.get('/google/callback',

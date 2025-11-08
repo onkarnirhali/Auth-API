@@ -10,6 +10,7 @@ const helmet = require('helmet');
 const compression = require('compression');
 const authRoutes = require('./routes/authRoutes');
 const todoRoutes = require('./routes/todoRoutes');
+const aiRoutes = require('./routes/aiRoutes');
 require('./config/db');
 require('./config/passport');
 
@@ -85,8 +86,9 @@ app.use((req, res, next) => {
 app.use(passport.initialize());
 
 // Routes
-app.use('/auth', require('./routes/authRoutes'));
+app.use('/auth', authRoutes);
 app.use('/api/todos', todoRoutes);
+app.use('/ai', aiRoutes);
 
 // Liveness/Readiness
 app.get('/healthz', async (req, res) => {
