@@ -20,6 +20,11 @@ async function findById(id) {
   return rows[0] ? mapUser(rows[0]) : null;
 }
 
+async function listAllIds() {
+  const { rows } = await pool.query('SELECT id FROM users');
+  return rows.map((r) => r.id);
+}
+
 async function create({ email, name, providerId, providerName }) {
   const now = new Date();
   const { rows } = await pool.query(
@@ -31,4 +36,4 @@ async function create({ email, name, providerId, providerName }) {
   return mapUser(rows[0]);
 }
 
-module.exports = { findByEmail, findById, create };
+module.exports = { findByEmail, findById, listAllIds, create };

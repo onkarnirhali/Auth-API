@@ -13,6 +13,7 @@ const todoRoutes = require('./routes/todoRoutes');
 const aiRoutes = require('./routes/aiRoutes');
 require('./config/db');
 require('./config/passport');
+const { startAiSuggestionScheduler, stopAiSuggestionScheduler } = require('./services/scheduler/aiSuggestionScheduler');
 
 
 const app = express();
@@ -118,9 +119,13 @@ app.use((err, req, res, next) => {
 // Graceful shutdown
 const PORT = process.env.PORT || 5000;
 const server = app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+if (process.env.NODE_ENV !== 'test') {
+  startAiSuggestionScheduler();
+}
 
 function shutdown(signal) {
   console.log(`\n${signal} received, shutting down gracefully...`);
+  stopAiSuggestionScheduler();
   server.close(async () => {
     try {
       const pool = require('./config/db');

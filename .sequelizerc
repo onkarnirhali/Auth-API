@@ -1,4 +1,6 @@
 const path = require('path');
+// Ensure sequelize-cli picks up local .env (DB_URL, etc.)
+require('dotenv').config({ path: path.resolve('.env') });
 
 module.exports = {
   config: path.resolve('config', 'config.json'),

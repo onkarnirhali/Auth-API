@@ -38,6 +38,28 @@ function createOpenAiProvider(config) {
         });
       }
     },
+    async embed({ text }) {
+      try {
+        const response = await client.embeddings.create({
+          input: ensurePrompt(text),
+          model: config.embedModel || 'text-embedding-3-small',
+        });
+        const embedding = response.data?.[0]?.embedding;
+        if (!Array.isArray(embedding)) {
+          throw new AiProviderError('OpenAI embedding response missing embedding', { provider: 'openai' });
+        }
+        return { embedding };
+      } catch (err) {
+        const message = err?.message || 'OpenAI embedding request failed';
+        const code = err?.code || err?.status || 'OPENAI_EMBED_ERROR';
+        throw new AiProviderError(message, {
+          provider: 'openai',
+          code,
+          status: err?.status,
+          metadata: err?.response?.data || null,
+        });
+      }
+    },
   };
 }
 

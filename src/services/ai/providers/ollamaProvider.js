@@ -43,6 +43,28 @@ function createOllamaProvider(config) {
         });
       }
     },
+    async embed({ text }) {
+      try {
+        const { data } = await client.post('/api/embeddings', {
+          model: config.embedModel || config.model,
+          prompt: ensurePrompt(text),
+        });
+        const embedding = data?.embedding;
+        if (!Array.isArray(embedding)) {
+          throw new AiProviderError('Ollama embedding response missing embedding', { provider: 'ollama' });
+        }
+        return { embedding };
+      } catch (err) {
+        const status = err?.response?.status || err?.code;
+        const message = err?.response?.data?.error || err?.message || 'Ollama embedding failed';
+        throw new AiProviderError(message, {
+          provider: 'ollama',
+          code: status || 'OLLAMA_EMBED_ERROR',
+          status: err?.response?.status || null,
+          metadata: err?.response?.data || null,
+        });
+      }
+    },
   };
 }
 
