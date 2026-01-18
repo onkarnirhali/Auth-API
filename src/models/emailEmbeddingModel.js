@@ -1,5 +1,7 @@
 'use strict';
 
+// Vectorized email snippets per user for similarity search (pgvector-backed)
+
 const pool = require('../config/db');
 
 const vectorLiteral = (embedding) => {
@@ -28,6 +30,7 @@ async function upsertMany(userId, items) {
   const results = [];
   try {
     await client.query('BEGIN');
+    // Upsert each message by (user, gmail_message_id) to keep embeddings fresh/idempotent
     for (const item of items) {
       const now = new Date();
       const params = [

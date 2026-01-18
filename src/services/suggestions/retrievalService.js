@@ -1,5 +1,7 @@
 'use strict';
 
+// Retrieve most relevant email contexts for generation using vector search with recency fallback
+
 const emailEmbeddings = require('../../models/emailEmbeddingModel');
 const { embedText } = require('../ai/embeddingService');
 

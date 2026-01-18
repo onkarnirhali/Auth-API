@@ -1,5 +1,6 @@
 const pool = require('../config/db');
 
+// Basic user persistence helpers for auth flows
 const mapUser = (row) => ({
   id: row.id,
   email: row.email,

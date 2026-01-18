@@ -6,6 +6,7 @@ const { rephrase, listSuggestions, refreshSuggestions, acceptSuggestion } = requ
 
 const router = express.Router();
 
+// AI helpers: rephrase and suggestion lifecycle (auth required)
 router.post('/rephrase', requireAuth, rephrase);
 router.get('/suggestions', requireAuth, listSuggestions);
 router.post('/suggestions/refresh', requireAuth, refreshSuggestions);

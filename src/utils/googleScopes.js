@@ -1,5 +1,7 @@
 'use strict';
 
+// Parse GOOGLE_OAUTH_SCOPES env into an array usable by Passport/Google API client
+
 function parseScopes(raw) {
   if (!raw) {
     return ['profile', 'email'];

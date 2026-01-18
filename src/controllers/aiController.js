@@ -5,6 +5,7 @@ const { AiProviderError } = require('../services/ai/errors');
 const aiSuggestions = require('../models/aiSuggestionModel');
 const { refreshSuggestionsForUser } = require('../services/suggestions/suggestionPipeline');
 
+// Rephrase a todo description using the configured LLM provider
 async function rephrase(req, res) {
   try {
     const { description } = req.body || {};
@@ -20,6 +21,7 @@ async function rephrase(req, res) {
   }
 }
 
+// List cached AI suggestions for the current user (no regeneration)
 async function listSuggestions(req, res) {
   try {
     const suggestions = await aiSuggestions.listByUser(req.user.id, Number(req.query.limit) || 20);
@@ -30,6 +32,7 @@ async function listSuggestions(req, res) {
   }
 }
 
+// Force ingest + retrieval + generation pipeline for the current user
 async function refreshSuggestions(req, res) {
   try {
     const result = await refreshSuggestionsForUser(req.user.id, {
@@ -48,6 +51,7 @@ async function refreshSuggestions(req, res) {
   }
 }
 
+// Mark a suggestion accepted (helper endpoint; does not create a todo)
 async function acceptSuggestion(req, res) {
   const suggestionId = Number(req.params.id);
   if (!Number.isFinite(suggestionId)) {

@@ -1,5 +1,7 @@
 'use strict';
 
+// Per-user Gmail sync position for incremental ingestion (history/internal date/message id)
+
 const pool = require('../config/db');
 
 const mapRow = (row) => ({

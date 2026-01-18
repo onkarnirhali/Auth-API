@@ -1,5 +1,7 @@
 'use strict';
 
+// Normalize AI provider configuration for both OpenAI and Ollama (text + embeddings)
+
 const PROVIDERS = {
   OPENAI: 'openai',
   OLLAMA: 'ollama',

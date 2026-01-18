@@ -1,6 +1,7 @@
 const todos = require('../services/todoService');
 const { sendError } = require('../utils/http');
 
+// CRUD handlers for user-owned todos (service layer handles DB + ownership)
 async function list(req, res) {
   const items = await todos.list(req.user.id, req.query);
   res.json({ items });

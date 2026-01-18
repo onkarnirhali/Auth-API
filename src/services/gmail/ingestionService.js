@@ -8,6 +8,7 @@ const { embedText } = require('../ai/embeddingService');
 
 const MAX_MESSAGES = Number(process.env.AI_GMAIL_MAX_MESSAGES || 50) || 50;
 const LOOKBACK_DAYS = Number(process.env.AI_GMAIL_LOOKBACK_DAYS || 30) || 30;
+const EXCLUDE_CATEGORIES = process.env.AI_GMAIL_EXCLUDE_CATEGORIES || 'promotions,social';
 
 function buildAfterQuery(cursor) {
   if (cursor?.lastInternalDateMs) {
@@ -24,12 +25,20 @@ async function listMessageIds(gmail, query, maxMessages) {
   const ids = [];
   let pageToken = undefined;
   while (ids.length < maxMessages) {
+    const exclusions = (EXCLUDE_CATEGORIES || '')
+      .split(',')
+      .map((c) => c.trim())
+      .filter(Boolean)
+      .map((c) => `-category:${c}`)
+      .join(' ');
+    const fullQuery = exclusions ? `${query} ${exclusions}` : query;
+
     const { data } = await gmail.users.messages.list({
       userId: 'me',
       maxResults: Math.min(50, maxMessages - ids.length),
       pageToken,
       labelIds: ['INBOX'],
-      q: query,
+      q: fullQuery,
       includeSpamTrash: false,
     });
     const batch = data?.messages || [];
@@ -60,7 +69,8 @@ async function ingestNewEmailsForUser(userId, options = {}) {
     return { ingested: 0, cursor: cursor || null, embeddings: [] };
   }
 
-  const parsed = [];
+  // Fetch + parse messages and track newest internal date for cursor advancement
+  const parsedArray = [];
   let newestInternalMs = cursor?.lastInternalDateMs || 0;
   let newestId = cursor?.lastGmailMessageId || null;
 
@@ -69,7 +79,7 @@ async function ingestNewEmailsForUser(userId, options = {}) {
       const message = await fetchMessage(gmail, id);
       const parsedMessage = parseGmailMessage(message);
       if (!parsedMessage || !parsedMessage.plainText) continue;
-      parsed.push(parsedMessage);
+      parsedArray.push(parsedMessage);
       if (parsedMessage.internalDateMs && parsedMessage.internalDateMs > newestInternalMs) {
         newestInternalMs = parsedMessage.internalDateMs;
         newestId = parsedMessage.gmailMessageId;
@@ -79,8 +89,9 @@ async function ingestNewEmailsForUser(userId, options = {}) {
     }
   }
 
+  // Embed cleaned plaintext for vector storage
   const embeddings = [];
-  for (const msg of parsed) {
+  for (const msg of parsedArray) {
     try {
       const embedding = await embedText(msg.plainText);
       if (!embedding) continue;

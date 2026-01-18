@@ -9,6 +9,7 @@ const SYSTEM_PROMPT = [
   'Preserve the original intent, keep it under 30 words, and do not add new tasks.',
 ].join(' ');
 
+// Short text rephrase helper with provider-agnostic interface
 async function rephraseDescription(description, options = {}) {
   const trimmed = (description || '').trim();
   if (!trimmed) {

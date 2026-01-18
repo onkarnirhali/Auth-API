@@ -1,5 +1,6 @@
 'use strict';
 
+// Parse Gmail message payloads into clean plaintext + metadata for embeddings
 const MAX_TEXT_LENGTH = Number(process.env.AI_EMAIL_MAX_CHARS || 4000) || 4000;
 
 const decodeBase64 = (data) => {
@@ -42,7 +43,7 @@ const findHeader = (headers, name) => {
 };
 
 function pickTextPart(payload) {
-  if (!payload) return '';
+  if (!payload) return null;
 
   const mime = (payload.mimeType || '').toLowerCase();
   const bodyData = payload.body?.data;
@@ -72,7 +73,7 @@ function pickTextPart(payload) {
   if (bodyData) {
     return decodeBase64(bodyData);
   }
-  return '';
+  return null;
 }
 
 function parseGmailMessage(message) {

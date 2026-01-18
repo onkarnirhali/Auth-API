@@ -1,5 +1,7 @@
 'use strict';
 
+// Lightweight interval scheduler to refresh AI suggestions for all users
+
 const users = require('../../models/userModel');
 const { refreshSuggestionsForUser } = require('../suggestions/suggestionPipeline');
 

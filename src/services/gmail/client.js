@@ -32,6 +32,7 @@ async function getAuthorizedGmail(userId) {
   });
 
   // Persist refreshed tokens automatically
+  // Persist refreshed tokens from Google as they arrive (access + refresh)
   oauth2Client.on('tokens', async (tokens) => {
     try {
       if (!tokens?.access_token && !tokens?.refresh_token) return;

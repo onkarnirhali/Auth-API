@@ -7,6 +7,7 @@ const { createOllamaProvider } = require('./providers/ollamaProvider');
 let cachedProvider = null;
 let cachedConfigKey = null;
 
+// Builds/caches provider instances based on env config to avoid re-instantiation
 function buildProvider() {
   const config = getConfig();
   const key = JSON.stringify({ provider: config.provider, config });

@@ -1,5 +1,7 @@
 'use strict';
 
+// Orchestrates end-to-end suggestion refresh: ingest Gmail -> retrieve contexts -> generate -> persist
+
 const aiSuggestions = require('../../models/aiSuggestionModel');
 const { ingestNewEmailsForUser } = require('../gmail/ingestionService');
 const { getRelevantEmailContexts } = require('./retrievalService');

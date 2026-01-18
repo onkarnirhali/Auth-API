@@ -24,6 +24,7 @@ function generateRefreshToken() {
 }
 
 function hashToken(token) {
+  // Store hashes only to avoid leaking actual refresh tokens in DB
   return crypto.createHash('sha256').update(token).digest('hex');
 }
 

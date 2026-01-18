@@ -1,4 +1,5 @@
 // src/server.js
+// Bootstraps express, security middleware, routes, and graceful shutdown. Also wires scheduler for AI suggestions.
 if (process.env.NODE_ENV !== 'production') {
   require('dotenv').config();
 }
@@ -17,7 +18,7 @@ const { startAiSuggestionScheduler, stopAiSuggestionScheduler } = require('./ser
 
 
 const app = express();
-// When behind a reverse proxy (e.g., Nginx/ALB) trust X-Forwarded-* headers
+// When behind a reverse proxy (e.g., Nginx/ALB) trust X-Forwarded-* headers for redirect + request logging
 app.set('trust proxy', 1);
 app.use(express.json());
 app.use(cookieParser());
@@ -28,7 +29,7 @@ app.use(cors({
   credentials: true,
 }));
 
-// Attach a request id (uses incoming X-Request-Id if provided)
+// Attach a request id (uses incoming X-Request-Id if provided) for traceability across logs/responses
 app.use((req, res, next) => {
   try {
     const { randomUUID } = require('crypto');
@@ -39,7 +40,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// Minimal request logger for debugging routes
+// Minimal request logger for debugging routes and timing
 app.use((req, res, next) => {
   const start = Date.now();
   res.on('finish', () => {
@@ -51,7 +52,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// URL guard: if trailing spaces (or %20) exist, 308-redirect to trimmed URL
+// URL guard: if trailing spaces (or %20) exist, 308-redirect to trimmed URL to keep canonical paths
 app.use((req, res, next) => {
   const url = req.url;
   const qIdx = url.indexOf('?');
@@ -65,7 +66,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// Optional HTTPS redirect in production (when behind proxy)
+// Optional HTTPS redirect in production (when behind proxy) unless explicitly disabled
 app.use((req, res, next) => {
   const redirectDisabled = process.env.DISABLE_HTTPS_REDIRECT === '1' || process.env.DISABLE_HTTPS_REDIRECT === 'true';
   if (process.env.NODE_ENV === 'production' && !redirectDisabled && !req.secure) {
@@ -83,7 +84,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// Initialize passport
+// Initialize passport for Google OAuth
 app.use(passport.initialize());
 
 // Routes
@@ -91,7 +92,7 @@ app.use('/auth', authRoutes);
 app.use('/api/todos', todoRoutes);
 app.use('/ai', aiRoutes);
 
-// Liveness/Readiness
+// Liveness/Readiness: verifies DB connectivity
 app.get('/healthz', async (req, res) => {
   try {
     const pool = require('./config/db');

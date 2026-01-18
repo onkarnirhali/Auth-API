@@ -1,5 +1,7 @@
 'use strict';
 
+// Ollama provider wrapper for text generation + embeddings via local API
+
 const axios = require('axios');
 const { AiProviderError } = require('../errors');
 const { ensurePrompt, normalizeResponse } = require('../utils');

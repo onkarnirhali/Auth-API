@@ -9,6 +9,7 @@ const callbackURL = process.env.NODE_ENV === 'production'
   ? (process.env.GOOGLE_CALLBACK_URL_PROD || process.env.GOOGLE_CALLBACK_URL)
   : (process.env.GOOGLE_CALLBACK_URL || process.env.GOOGLE_CALLBACK_URL_PROD);
 
+// Passport Google strategy: ensures user exists, persists tokens (access + refresh) for Gmail access
 passport.use(
   new GoogleStrategy(
     {

@@ -6,6 +6,7 @@ const ctrl = require('../controllers/todoController');
 
 const router = express.Router();
 
+// Todos API: all routes require auth; validation is request-shape aware
 router.use(requireAuth);
 router.get('/', validationMiddleware(validateListQuery), ctrl.list);
 router.post('/', validationMiddleware((req)=>validateCreate(req)), ctrl.create);

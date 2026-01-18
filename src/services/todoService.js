@@ -13,6 +13,7 @@ const mapTodo = (row) => ({
 });
 
 async function list(userId, { status, q, dueFrom, dueTo } = {}) {
+  // Build dynamic filters per user; ILIKE enables case-insensitive text search
   const clauses = ['user_id = $1'];
   const params = [userId];
   let i = params.length + 1;

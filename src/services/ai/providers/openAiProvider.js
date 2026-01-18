@@ -1,5 +1,7 @@
 'use strict';
 
+// OpenAI chat + embedding provider wrapper with unified interface/ error mapping
+
 const OpenAI = require('openai');
 const { AiProviderError } = require('../errors');
 const { ensurePrompt, normalizeResponse } = require('../utils');

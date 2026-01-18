@@ -11,7 +11,7 @@ const generateRefreshToken = (userId) => {
   return jwt.sign({ userId }, process.env.REFRESH_TOKEN_SECRET, { expiresIn: '7d' });
 };
 
-// Handle successful login from Google OAuth
+// Handle successful login from Google OAuth: issues access/refresh cookies and redirects to frontend when configured
 const handleGoogleCallback = async (req, res) => {
   const user = req.user;
 
@@ -48,7 +48,7 @@ const handleGoogleCallback = async (req, res) => {
   return res.json({ success: true })
 };
 
-// Handle logout
+// Handle logout: revoke refresh token if present and clear cookies
 const logout = async (req, res) => {
   const refresh = req.cookies?.refreshToken;
   const userId = req.user?.id || null;
@@ -61,7 +61,7 @@ const logout = async (req, res) => {
     .send('Logged out');
 };
 
-// Handle refresh token logic
+// Refresh access token using current refresh token; rotates refresh token for safety
 const refreshAccessToken = async (req, res) => {
   const token = req.cookies?.refreshToken;
   if (!token) return res.status(401).send('No refresh token');

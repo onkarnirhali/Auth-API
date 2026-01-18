@@ -2,6 +2,7 @@
 
 const pool = require('../config/db');
 
+// Persisted AI suggestions per user; separate from todos to allow review/acceptance
 const mapRow = (row) => ({
   id: row.id,
   userId: row.user_id,
@@ -32,6 +33,7 @@ async function replaceForUser(userId, suggestions) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+    // Replace strategy keeps only latest generated set to avoid duplicates/stale entries
     await client.query('DELETE FROM ai_suggestions WHERE user_id = $1', [userId]);
 
     const inserted = [];

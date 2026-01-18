@@ -1,5 +1,7 @@
 'use strict';
 
+// Wrapper around provider embeddings with dimension normalization for pgvector
+
 const { generateEmbedding } = require('./index');
 const { DEFAULT_EMBED_DIM } = require('./config');
 

@@ -2,6 +2,7 @@
 
 const pool = require('../config/db');
 
+// Persists Google OAuth tokens (access/refresh) per user for Gmail access
 const mapRow = (row) => ({
   id: row.id,
   userId: row.user_id,

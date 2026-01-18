@@ -21,7 +21,7 @@ const googleAuthOptions = {
 // Simple ping to verify router mount
 router.get('/ping', (req, res) => res.json({ ok: true }));
 
-// OAuth routes
+// OAuth routes: kickoff and callback for Google
 router.get('/google',
   passport.authenticate('google', googleAuthOptions)
 );

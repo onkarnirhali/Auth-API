@@ -1,5 +1,7 @@
 'use strict';
 
+// Generates structured task suggestions from email contexts via LLM with strict JSON contract
+
 const { generateText } = require('./index');
 const { AiProviderError } = require('./errors');
 
