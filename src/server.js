@@ -15,17 +15,20 @@ const aiRoutes = require('./routes/aiRoutes');
 require('./config/db');
 require('./config/passport');
 const { startAiSuggestionScheduler, stopAiSuggestionScheduler } = require('./services/scheduler/aiSuggestionScheduler');
+const { errorHandler } = require('./middleware/errorHandler');
+const logger = require('./utils/logger');
 
 
 const app = express();
 // When behind a reverse proxy (e.g., Nginx/ALB) trust X-Forwarded-* headers for redirect + request logging
 app.set('trust proxy', 1);
-app.use(express.json());
+app.use(express.json({ limit: process.env.BODY_LIMIT || '1mb' }));
 app.use(cookieParser());
 app.use(helmet());
 app.use(compression());
+const allowedOrigins = (process.env.CORS_ORIGIN || '').split(',').map((o) => o.trim()).filter(Boolean);
 app.use(cors({
-  origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : true,
+  origin: allowedOrigins.length ? allowedOrigins : true,
   credentials: true,
 }));
 
@@ -47,7 +50,7 @@ app.use((req, res, next) => {
     const ms = Date.now() - start;
     const ip = req.ip || req.connection?.remoteAddress || '-';
     const id = req.id ? `[${req.id}] ` : '';
-    console.log(`${id}${req.method} ${req.originalUrl} <- ${ip} -> ${res.statusCode} ${ms}ms`);
+    logger.info(`${req.method} ${req.originalUrl}`, { requestId: req.id, ip, status: res.statusCode, durationMs: ms });
   });
   next();
 });
@@ -111,10 +114,7 @@ app.use((req, res, next) => {
 // Error handler (standardized)
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
-  const status = err.status || 500;
-  const code = err.code || undefined;
-  const message = err.expose ? err.message : (err.message || 'Internal Server Error');
-  res.status(status).json({ error: { message, code }, requestId: req.id });
+  errorHandler(err, req, res, next);
 });
 
 // Graceful shutdown

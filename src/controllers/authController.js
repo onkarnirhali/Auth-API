@@ -36,8 +36,12 @@ const handleGoogleCallback = async (req, res) => {
     .cookie('accessToken', accessToken, { ...cookieBase, maxAge: 15 * 60 * 1000 })
     .cookie('refreshToken', refreshToken, { ...cookieBase, maxAge: 7 * 24 * 60 * 60 * 1000 });
 
-  // Prefer redirect to frontend after successful login
-  const frontend = process.env.FRONTEND_URL || (process.env.CORS_ORIGIN || '').split(',')[0] || null;
+  // Prefer redirect to frontend after successful login; allowlist to prevent open redirects
+  const allowed = (process.env.ALLOWED_REDIRECTS || process.env.FRONTEND_URL || process.env.CORS_ORIGIN || '')
+    .split(',')
+    .map((v) => v.trim())
+    .filter(Boolean);
+  const frontend = allowed[0] || null;
   const redirectPath = process.env.LOGIN_SUCCESS_REDIRECT_PATH || '/app';
   if (frontend) {
     try {

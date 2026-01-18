@@ -21,8 +21,16 @@ const googleAuthOptions = {
 // Simple ping to verify router mount
 router.get('/ping', (req, res) => res.json({ ok: true }));
 
+const loginLimiter = rateLimit({
+  windowMs: Number(process.env.RL_LOGIN_WINDOW_MS || 60_000),
+  max: Number(process.env.RL_LOGIN_MAX || 20),
+  keyGenerator: (req) => req.ip,
+  message: 'Too many login attempts, please slow down',
+});
+
 // OAuth routes: kickoff and callback for Google
 router.get('/google',
+  loginLimiter,
   passport.authenticate('google', googleAuthOptions)
 );
 

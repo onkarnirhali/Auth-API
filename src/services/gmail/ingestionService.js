@@ -9,6 +9,7 @@ const { embedText } = require('../ai/embeddingService');
 const MAX_MESSAGES = Number(process.env.AI_GMAIL_MAX_MESSAGES || 50) || 50;
 const LOOKBACK_DAYS = Number(process.env.AI_GMAIL_LOOKBACK_DAYS || 30) || 30;
 const EXCLUDE_CATEGORIES = process.env.AI_GMAIL_EXCLUDE_CATEGORIES || 'promotions,social';
+const EXCLUDE_LABEL_IDS = process.env.AI_GMAIL_EXCLUDE_LABELS || 'CATEGORY_PROMOTIONS,CATEGORY_SOCIAL';
 
 function buildAfterQuery(cursor) {
   if (cursor?.lastInternalDateMs) {
@@ -74,9 +75,13 @@ async function ingestNewEmailsForUser(userId, options = {}) {
   let newestInternalMs = cursor?.lastInternalDateMs || 0;
   let newestId = cursor?.lastGmailMessageId || null;
 
+  const excludedLabels = (EXCLUDE_LABEL_IDS || '').split(',').map((s) => s.trim()).filter(Boolean);
+
   for (const id of messageIds) {
     try {
       const message = await fetchMessage(gmail, id);
+      const labels = message?.labelIds || [];
+      if (labels.some((l) => excludedLabels.includes(l))) continue;
       const parsedMessage = parseGmailMessage(message);
       if (!parsedMessage || !parsedMessage.plainText) continue;
       parsedArray.push(parsedMessage);
