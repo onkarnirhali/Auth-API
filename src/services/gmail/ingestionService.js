@@ -5,11 +5,15 @@ const { parseGmailMessage } = require('./messageParser');
 const gmailSyncCursor = require('../../models/gmailSyncCursorModel');
 const emailEmbeddings = require('../../models/emailEmbeddingModel');
 const { embedText } = require('../ai/embeddingService');
+const { summarizeEmailText } = require('../ai/emailSummaryService');
 
 const MAX_MESSAGES = Number(process.env.AI_GMAIL_MAX_MESSAGES || 50) || 50;
 const LOOKBACK_DAYS = Number(process.env.AI_GMAIL_LOOKBACK_DAYS || 30) || 30;
 const EXCLUDE_CATEGORIES = process.env.AI_GMAIL_EXCLUDE_CATEGORIES || 'promotions,social';
 const EXCLUDE_LABEL_IDS = process.env.AI_GMAIL_EXCLUDE_LABELS || 'CATEGORY_PROMOTIONS,CATEGORY_SOCIAL';
+const SINGLE_EMAIL_SUMMARY_WORDS = Number(process.env.AI_EMAIL_SUMMARY_MAX_WORDS_SINGLE || 300) || 300;
+const THREAD_SUMMARY_WORDS = Number(process.env.AI_EMAIL_SUMMARY_MAX_WORDS_THREAD || 1000) || 1000;
+const SUMMARY_INPUT_MAX_CHARS = Number(process.env.AI_SUMMARY_MAX_INPUT_CHARS || 12000) || 12000;
 
 function buildAfterQuery(cursor) {
   if (cursor?.lastInternalDateMs) {
@@ -94,24 +98,62 @@ async function ingestNewEmailsForUser(userId, options = {}) {
     }
   }
 
-  // Embed cleaned plaintext for vector storage
+  // Summarize (store in plain_text) then embed
   const embeddings = [];
+  const threadBuckets = new Map();
   for (const msg of parsedArray) {
+    const key = msg.gmailThreadId || msg.gmailMessageId;
+    const existing = threadBuckets.get(key) || [];
+    existing.push(msg);
+    threadBuckets.set(key, existing);
+  }
+
+  for (const bucket of threadBuckets.values()) {
+    const isThread = bucket.length > 1;
+    const maxWords = isThread ? THREAD_SUMMARY_WORDS : SINGLE_EMAIL_SUMMARY_WORDS;
+    const combinedText = bucket
+      .map((m) => [m.subject ? `Subject: ${m.subject}` : null, m.plainText].filter(Boolean).join('\n'))
+      .join('\n----\n');
+    const safeCombinedText = combinedText.length > SUMMARY_INPUT_MAX_CHARS ? combinedText.slice(0, SUMMARY_INPUT_MAX_CHARS) : combinedText;
+
+    let summary = '';
     try {
-      const embedding = await embedText(msg.plainText);
-      if (!embedding) continue;
-      embeddings.push({
-        gmailMessageId: msg.gmailMessageId,
-        gmailThreadId: msg.gmailThreadId,
-        subject: msg.subject,
-        snippet: msg.snippet,
-        plainText: msg.plainText,
-        sentAt: msg.sentAt,
-        embedding,
-        metadata: msg.metadata,
+      summary = await summarizeEmailText(safeCombinedText, {
+        maxWords,
+        contextLabel: isThread ? 'email thread' : 'email',
       });
     } catch (err) {
-      console.error('Failed to embed Gmail message', { userId, messageId: msg.gmailMessageId, error: err?.message });
+      console.error('Failed to summarize Gmail message(s)', {
+        userId,
+        threadId: bucket[0]?.gmailThreadId || bucket[0]?.gmailMessageId,
+        error: err?.message,
+      });
+    }
+
+    const summaryText = summary || safeCombinedText;
+
+    for (const msg of bucket) {
+      try {
+        const embedding = await embedText(summaryText);
+        if (!embedding) continue;
+        embeddings.push({
+          gmailMessageId: msg.gmailMessageId,
+          gmailThreadId: msg.gmailThreadId,
+          subject: msg.subject,
+          snippet: msg.snippet,
+          plainText: summaryText,
+          sentAt: msg.sentAt,
+          embedding,
+          metadata: {
+            ...msg.metadata,
+            summarySource: isThread ? 'thread' : 'message',
+            summaryWordCap: maxWords,
+            usedSummary: Boolean(summary),
+          },
+        });
+      } catch (err) {
+        console.error('Failed to embed Gmail message', { userId, messageId: msg.gmailMessageId, error: err?.message });
+      }
     }
   }
 

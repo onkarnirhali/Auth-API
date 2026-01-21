@@ -16,15 +16,22 @@ const mapRow = (row) => ({
   updatedAt: row.updated_at,
 });
 
-async function listByUser(userId, limit = 20) {
+async function listByUser(userId, options = {}) {
+  const limit = Number(options.limit) || 20;
+  const status = options.status || 'suggested';
+  const params = [userId, limit];
+  const statusClause = status === 'all' || !status ? '' : 'AND status = $3';
+  if (statusClause) params.push(status);
+
   const { rows } = await pool.query(
     `
     SELECT * FROM ai_suggestions
     WHERE user_id = $1
+    ${statusClause}
     ORDER BY created_at DESC
     LIMIT $2;
     `,
-    [userId, limit]
+    params
   );
   return rows.map(mapRow);
 }
@@ -71,22 +78,61 @@ async function replaceForUser(userId, suggestions) {
   }
 }
 
-async function updateStatus(id, userId, status) {
+async function updateStatus(id, userId, status, metadataPatch) {
   const now = new Date();
-  const { rows } = await pool.query(
-    `
+  const params = [id, userId, status, now];
+  let query = `
     UPDATE ai_suggestions
     SET status = $3, updated_at = $4
     WHERE id = $1 AND user_id = $2
     RETURNING *;
-    `,
-    [id, userId, status, now]
-  );
+  `;
+
+  if (metadataPatch && Object.keys(metadataPatch).length > 0) {
+    params.push(metadataPatch);
+    query = `
+      UPDATE ai_suggestions
+      SET status = $3,
+          metadata = COALESCE(metadata, '{}'::jsonb) || $5::jsonb,
+          updated_at = $4
+      WHERE id = $1 AND user_id = $2
+      RETURNING *;
+    `;
+  }
+
+  const { rows } = await pool.query(query, params);
   return rows[0] ? mapRow(rows[0]) : null;
+}
+
+async function bulkUpdateStatus(userId, ids, status, metadataPatch) {
+  if (!Array.isArray(ids) || ids.length === 0) return [];
+  const now = new Date();
+  const params = [userId, ids, status, now];
+  let query = `
+    UPDATE ai_suggestions
+    SET status = $3, updated_at = $4
+    WHERE user_id = $1 AND id = ANY($2)
+    RETURNING *;
+  `;
+  if (metadataPatch && Object.keys(metadataPatch).length > 0) {
+    params.push(metadataPatch);
+    query = `
+      UPDATE ai_suggestions
+      SET status = $3,
+          metadata = COALESCE(metadata, '{}'::jsonb) || $5::jsonb,
+          updated_at = $4
+      WHERE user_id = $1 AND id = ANY($2)
+      RETURNING *;
+    `;
+  }
+
+  const { rows } = await pool.query(query, params);
+  return rows.map(mapRow);
 }
 
 module.exports = {
   listByUser,
   replaceForUser,
   updateStatus,
+  bulkUpdateStatus,
 };

@@ -24,7 +24,10 @@ async function rephrase(req, res) {
 // List cached AI suggestions for the current user (no regeneration)
 async function listSuggestions(req, res) {
   try {
-    const suggestions = await aiSuggestions.listByUser(req.user.id, Number(req.query.limit) || 20);
+    const suggestions = await aiSuggestions.listByUser(req.user.id, {
+      limit: Number(req.query.limit) || 20,
+      status: req.query.status || 'suggested',
+    });
     res.json({ suggestions });
   } catch (err) {
     console.error('Failed to list suggestions', err);
@@ -67,9 +70,52 @@ async function acceptSuggestion(req, res) {
   }
 }
 
+// Mark a suggestion dismissed (records optional reason)
+async function dismissSuggestion(req, res) {
+  const suggestionId = Number(req.params.id);
+  if (!Number.isFinite(suggestionId)) {
+    return res.status(400).json({ error: 'Invalid suggestion id' });
+  }
+  const reason = typeof req.body?.reason === 'string' ? req.body.reason.trim() : '';
+  const metadataPatch = {
+    dismissedAt: new Date().toISOString(),
+    ...(reason ? { dismissedReason: reason } : {}),
+  };
+  try {
+    const updated = await aiSuggestions.updateStatus(suggestionId, req.user.id, 'dismissed', metadataPatch);
+    if (!updated) return res.status(404).json({ error: 'Suggestion not found' });
+    res.json({ suggestion: updated });
+  } catch (err) {
+    console.error('Failed to dismiss suggestion', err);
+    res.status(500).json({ error: 'Failed to dismiss suggestion' });
+  }
+}
+
+// Bulk dismiss suggestions for the current user
+async function dismissSuggestionsBulk(req, res) {
+  const ids = Array.isArray(req.body?.ids) ? req.body.ids.map((id) => Number(id)).filter(Number.isFinite) : [];
+  if (ids.length === 0) {
+    return res.status(400).json({ error: 'ids array is required' });
+  }
+  const reason = typeof req.body?.reason === 'string' ? req.body.reason.trim() : '';
+  const metadataPatch = {
+    dismissedAt: new Date().toISOString(),
+    ...(reason ? { dismissedReason: reason } : {}),
+  };
+  try {
+    const updated = await aiSuggestions.bulkUpdateStatus(req.user.id, ids, 'dismissed', metadataPatch);
+    res.json({ dismissed: updated.map((s) => s.id) });
+  } catch (err) {
+    console.error('Failed to bulk dismiss suggestions', err);
+    res.status(500).json({ error: 'Failed to dismiss suggestions' });
+  }
+}
+
 module.exports = {
   rephrase,
   listSuggestions,
   refreshSuggestions,
   acceptSuggestion,
+  dismissSuggestion,
+  dismissSuggestionsBulk,
 };

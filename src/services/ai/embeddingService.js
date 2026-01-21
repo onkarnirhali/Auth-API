@@ -25,6 +25,8 @@ async function embedText(text, options = {}) {
   const trimmed = (text || '').trim();
   if (!trimmed) return null;
   const { embedding } = await generateEmbedding({ text: trimmed });
+  console.log("embedding length:", embedding.length);
+  console.log("embedding sample:", embedding);
   return normalizeEmbeddingVector(embedding, options.dimension || DEFAULT_EMBED_DIM);
 }
 
