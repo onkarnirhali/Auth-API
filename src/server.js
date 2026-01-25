@@ -12,6 +12,7 @@ const compression = require('compression');
 const authRoutes = require('./routes/authRoutes');
 const todoRoutes = require('./routes/todoRoutes');
 const aiRoutes = require('./routes/aiRoutes');
+const meRoutes = require('./routes/meRoutes');
 require('./config/db');
 require('./config/passport');
 const { startAiSuggestionScheduler, stopAiSuggestionScheduler } = require('./services/scheduler/aiSuggestionScheduler');
@@ -94,6 +95,7 @@ app.use(passport.initialize());
 app.use('/auth', authRoutes);
 app.use('/api/todos', todoRoutes);
 app.use('/ai', aiRoutes);
+app.use('/me', meRoutes);
 
 // Liveness/Readiness: verifies DB connectivity
 app.get('/healthz', async (req, res) => {
