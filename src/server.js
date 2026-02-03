@@ -13,6 +13,7 @@ const authRoutes = require('./routes/authRoutes');
 const todoRoutes = require('./routes/todoRoutes');
 const aiRoutes = require('./routes/aiRoutes');
 const meRoutes = require('./routes/meRoutes');
+const outlookRoutes = require('./routes/outlookRoutes');
 require('./config/db');
 require('./config/passport');
 const { startAiSuggestionScheduler, stopAiSuggestionScheduler } = require('./services/scheduler/aiSuggestionScheduler');
@@ -96,6 +97,7 @@ app.use('/auth', authRoutes);
 app.use('/api/todos', todoRoutes);
 app.use('/ai', aiRoutes);
 app.use('/me', meRoutes);
+app.use('/outlook', outlookRoutes);
 
 // Liveness/Readiness: verifies DB connectivity
 app.get('/healthz', async (req, res) => {

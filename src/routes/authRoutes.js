@@ -9,6 +9,7 @@ const {
   logout,
   refreshAccessToken,
 } = require('../controllers/authController');
+const { start: startOutlookAuth, callback: outlookCallback } = require('../controllers/outlookAuthController');
 const { getGoogleScopes } = require('../utils/googleScopes');
 
 const googleAuthOptions = {
@@ -38,6 +39,10 @@ router.get('/google/callback',
   passport.authenticate('google', { session: false, failureRedirect: '/auth/failure' }),
   handleGoogleCallback
 );
+
+// Outlook OAuth (link account) - requires existing session
+router.get('/outlook/start', requireAuth, startOutlookAuth);
+router.get('/outlook/callback', outlookCallback);
 
 router.get('/failure', (req, res) => res.status(401).json({ error: 'OAuth failed' }));
 

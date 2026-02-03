@@ -2,6 +2,7 @@
 
 const gmailTokens = require('../models/gmailTokenModel');
 const providerLinks = require('../models/providerLinkModel');
+const outlookTokens = require('../models/outlookTokenModel');
 
 const PROVIDER_DISPLAY = {
   gmail: 'Gmail',
@@ -16,6 +17,7 @@ function toResponse(link) {
     ingestEnabled: !!link.ingestEnabled,
     lastLinkedAt: link.lastLinkedAt,
     lastSyncAt: link.lastSyncAt,
+    metadata: link.metadata || {},
   };
 }
 
@@ -24,6 +26,7 @@ async function listProviders(req, res) {
     const userId = req.user.id;
     const links = await providerLinks.listByUser(userId);
     const gmailToken = await gmailTokens.findByUserId(userId);
+    const outlookToken = await outlookTokens.findByUserId(userId);
 
     const hasGmail = links.find((l) => l.provider === 'gmail');
     const providers = [...links];
@@ -55,11 +58,26 @@ async function listProviders(req, res) {
     if (!providers.find((p) => p.provider === 'outlook')) {
       providers.push({
         provider: 'outlook',
-        linked: false,
-        ingestEnabled: false,
-        lastLinkedAt: null,
+        linked: !!outlookToken,
+        ingestEnabled: !!outlookToken,
+        lastLinkedAt: outlookToken ? outlookToken.updatedAt : null,
         lastSyncAt: null,
+        metadata: outlookToken ? { accountEmail: outlookToken.accountEmail, tenantId: outlookToken.tenantId } : {},
       });
+    } else if (outlookToken) {
+      // merge token metadata into existing link
+      const idx = providers.findIndex((p) => p.provider === 'outlook');
+      providers[idx] = {
+        ...providers[idx],
+        linked: true,
+        ingestEnabled: providers[idx].ingestEnabled ?? true,
+        metadata: {
+          ...(providers[idx].metadata || {}),
+          accountEmail: outlookToken.accountEmail,
+          tenantId: outlookToken.tenantId,
+        },
+        lastLinkedAt: providers[idx].lastLinkedAt || outlookToken.updatedAt,
+      };
     }
 
     res.json({ providers: providers.map(toResponse) });
@@ -91,6 +109,9 @@ async function disconnectProvider(req, res) {
   const provider = (req.params.provider || '').toLowerCase();
   if (!provider) return res.status(400).json({ error: 'provider is required' });
   try {
+    if (provider === 'outlook') {
+      try { await outlookTokens.removeByUserId(req.user.id); } catch (_) {}
+    }
     const linked = await providerLinks.upsertLink({
       userId: req.user.id,
       provider,

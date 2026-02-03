@@ -50,6 +50,12 @@ AI_SUGGESTION_MAX_RESULTS=8
 AI_EMAIL_MAX_CHARS=4000
 AI_GMAIL_MAX_MESSAGES=50
 AI_GMAIL_LOOKBACK_DAYS=30
+MS_CLIENT_ID=
+MS_CLIENT_SECRET=
+MS_REDIRECT_URI=http://localhost:4000/auth/outlook/callback
+MS_TENANT=common
+MS_TOKEN_ENC_KEY= # 32-byte base64 (e.g., openssl rand -base64 32)
+MS_GRAPH_SCOPES=\"openid profile email offline_access https://graph.microsoft.com/Mail.Read https://graph.microsoft.com/Calendars.Read\"
 ```
 
 ### Google OAuth & Gmail access
@@ -75,6 +81,22 @@ AI_GMAIL_LOOKBACK_DAYS=30
 3. Sign in via `/auth/google`; the Passport callback saves `access_token`, `refresh_token`, scope, token type, and expiry per user.
 4. Verify storage with `SELECT * FROM gmail_tokens WHERE user_id = <id>;` — refresh tokens update only when Google sends a new value.
 5. Check logs for `Failed to persist Gmail tokens` messages if the upsert fails; login still succeeds but Gmail integrations will be unavailable.
+
+### Outlook / Microsoft Graph (Mail + Calendar)
+- Azure App Registration redirect URIs (web):
+  - `http://localhost:4000/auth/outlook/callback`
+  - `https://dev.onkarn.info/auth/outlook/callback`
+  - `https://auth-api-ik0h.onrender.com/auth/outlook/callback`
+- Delegated API permissions required: `Mail.Read`, `Calendars.Read`, `openid`, `profile`, `email`, `offline_access`.
+- Env vars:
+  - `MS_CLIENT_ID`, `MS_CLIENT_SECRET`, `MS_REDIRECT_URI`, `MS_TENANT=common`
+  - `MS_GRAPH_SCOPES` (defaults provided)
+  - `MS_TOKEN_ENC_KEY` — 32-byte key for AES-GCM; generate with `openssl rand -base64 32`
+- Flow:
+  - Start: `GET /auth/outlook/start` (requires existing session) → Microsoft authorize.
+  - Callback: `GET /auth/outlook/callback` exchanges code, stores encrypted refresh token, links provider.
+  - Data endpoints: `/outlook/emails`, `/outlook/calendar`.
+  - Outlook emails are ingested into the AI suggestions pipeline alongside Gmail; IDs are prefixed with `outlook:` to avoid collisions.
 
 ### AI helper endpoints
 - `POST /ai/rephrase` (auth required) — body: `{ "description": "pay rent tmw" }`. Returns `{ "rephrased": "Pay the rent tomorrow morning." }`.
