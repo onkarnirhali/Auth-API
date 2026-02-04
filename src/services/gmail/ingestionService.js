@@ -4,7 +4,7 @@ const { getAuthorizedGmail } = require('./client');
 const { parseGmailMessage } = require('./messageParser');
 const gmailSyncCursor = require('../../models/gmailSyncCursorModel');
 const emailEmbeddings = require('../../models/emailEmbeddingModel');
-const { embedText } = require('../ai/embeddingService');
+const { embedTextWithUsage } = require('../ai/embeddingService');
 const { summarizeEmailText } = require('../ai/emailSummaryService');
 
 const MAX_MESSAGES = Number(process.env.AI_GMAIL_MAX_MESSAGES || 50) || 50;
@@ -134,7 +134,12 @@ async function ingestNewEmailsForUser(userId, options = {}) {
 
     for (const msg of bucket) {
       try {
-        const embedding = await embedText(summaryText);
+        const embedded = await embedTextWithUsage(summaryText, {
+          userId,
+          source: 'gmail',
+          purpose: 'email_ingest',
+        });
+        const embedding = embedded ? embedded.embedding : null;
         if (!embedding) continue;
         embeddings.push({
           gmailMessageId: msg.gmailMessageId,

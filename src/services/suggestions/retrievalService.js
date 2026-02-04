@@ -3,7 +3,7 @@
 // Retrieve most relevant email contexts for generation using vector search with recency fallback
 
 const emailEmbeddings = require('../../models/emailEmbeddingModel');
-const { embedText } = require('../ai/embeddingService');
+const { embedTextWithUsage } = require('../ai/embeddingService');
 
 const DEFAULT_QUERY = process.env.AI_SUGGESTION_QUERY ||
   'Identify actionable tasks, follow-ups, deadlines, and reminders from these Gmail messages.';
@@ -12,7 +12,12 @@ const TOP_K = Number(process.env.AI_SUGGESTION_TOP_K || 12) || 12;
 async function getRelevantEmailContexts(userId) {
   let contexts = [];
   try {
-    const queryEmbedding = await embedText(DEFAULT_QUERY);
+    const embedded = await embedTextWithUsage(DEFAULT_QUERY, {
+      userId,
+      source: 'retrieval',
+      purpose: 'suggestion_retrieval',
+    });
+    const queryEmbedding = embedded ? embedded.embedding : null;
     if (queryEmbedding) {
       contexts = await emailEmbeddings.searchSimilar(userId, queryEmbedding, TOP_K);
     }

@@ -4,6 +4,7 @@
 
 const { generateEmbedding } = require('./index');
 const { DEFAULT_EMBED_DIM } = require('./config');
+const { logEmbeddingUsage } = require('./tokenUsageService');
 
 function normalizeEmbeddingVector(vector, dim = DEFAULT_EMBED_DIM) {
   if (!Array.isArray(vector)) return null;
@@ -21,16 +22,36 @@ function normalizeEmbeddingVector(vector, dim = DEFAULT_EMBED_DIM) {
   return padded;
 }
 
+async function embedTextWithUsage(text, options = {}) {
+  const trimmed = (text || '').trim();
+  if (!trimmed) return null;
+  const { embedding, usage, provider, model } = await generateEmbedding({ text: trimmed });
+  const normalized = normalizeEmbeddingVector(embedding, options.dimension || DEFAULT_EMBED_DIM);
+  if (options.userId) {
+    await logEmbeddingUsage({
+      userId: options.userId,
+      requestId: options.requestId || null,
+      ipAddress: options.ipAddress || null,
+      userAgent: options.userAgent || null,
+      source: options.source || 'embedding',
+      usage,
+      provider,
+      model,
+      purpose: options.purpose || 'embedding',
+    });
+  }
+  return { embedding: normalized, usage, provider, model };
+}
+
 async function embedText(text, options = {}) {
   const trimmed = (text || '').trim();
   if (!trimmed) return null;
-  const { embedding } = await generateEmbedding({ text: trimmed });
-  console.log("embedding length:", embedding.length);
-  console.log("embedding sample:", embedding);
-  return normalizeEmbeddingVector(embedding, options.dimension || DEFAULT_EMBED_DIM);
+  const result = await embedTextWithUsage(trimmed, options);
+  return result ? result.embedding : null;
 }
 
 module.exports = {
   embedText,
   normalizeEmbeddingVector,
+  embedTextWithUsage,
 };

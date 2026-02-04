@@ -4,12 +4,19 @@ const { rephraseDescription } = require('../services/ai/textService');
 const { AiProviderError } = require('../services/ai/errors');
 const aiSuggestions = require('../models/aiSuggestionModel');
 const { refreshSuggestionsForUser } = require('../services/suggestions/suggestionPipeline');
+const { logEventSafe } = require('../services/eventService');
 
 // Rephrase a todo description using the configured LLM provider
 async function rephrase(req, res) {
   try {
     const { description } = req.body || {};
-    const rephrased = await rephraseDescription(description);
+    const rephrased = await rephraseDescription(description, {
+      userId: req.user.id,
+      requestId: req.id,
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent'),
+      source: 'api',
+    });
     res.json({ rephrased });
   } catch (err) {
     if (err instanceof AiProviderError) {
@@ -40,6 +47,10 @@ async function refreshSuggestions(req, res) {
   try {
     const result = await refreshSuggestionsForUser(req.user.id, {
       maxMessages: req.body?.maxMessages,
+      requestId: req.id,
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent'),
+      source: 'manual',
     });
     res.json({
       suggestions: result.suggestions,
@@ -63,6 +74,15 @@ async function acceptSuggestion(req, res) {
   try {
     const updated = await aiSuggestions.updateStatus(suggestionId, req.user.id, 'accepted');
     if (!updated) return res.status(404).json({ error: 'Suggestion not found' });
+    await logEventSafe({
+      type: 'ai.suggestions.accepted',
+      userId: req.user.id,
+      requestId: req.id,
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent'),
+      source: 'api',
+      metadata: { suggestionId },
+    });
     res.json({ suggestion: updated });
   } catch (err) {
     console.error('Failed to accept suggestion', err);

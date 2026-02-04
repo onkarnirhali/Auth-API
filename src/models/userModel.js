@@ -7,6 +7,8 @@ const mapUser = (row) => ({
   name: row.name,
   providerId: row.provider_id,
   providerName: row.provider_name,
+  role: row.role || 'user',
+  lastActiveAt: row.last_active_at || null,
   createdAt: row.created_at,
   updatedAt: row.updated_at,
 });
@@ -37,4 +39,17 @@ async function create({ email, name, providerId, providerName }) {
   return mapUser(rows[0]);
 }
 
-module.exports = { findByEmail, findById, listAllIds, create };
+async function touchLastActive(userId, minMinutes = 5) {
+  if (!userId) return false;
+  const minutes = Number.isFinite(Number(minMinutes)) && Number(minMinutes) > 0 ? Math.floor(Number(minMinutes)) : 5;
+  const { rowCount } = await pool.query(
+    `UPDATE users
+     SET last_active_at = NOW(), updated_at = NOW()
+     WHERE id = $1
+       AND (last_active_at IS NULL OR last_active_at < NOW() - ($2 * INTERVAL '1 minute'))`,
+    [userId, minutes]
+  );
+  return rowCount > 0;
+}
+
+module.exports = { findByEmail, findById, listAllIds, create, touchLastActive };

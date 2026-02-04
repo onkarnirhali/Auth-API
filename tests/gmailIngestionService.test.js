@@ -4,7 +4,7 @@ jest.mock('../src/services/gmail/client', () => ({
   getAuthorizedGmail: jest.fn(),
 }));
 jest.mock('../src/services/ai/embeddingService', () => ({
-  embedText: jest.fn(),
+  embedTextWithUsage: jest.fn(),
 }));
 jest.mock('../src/models/emailEmbeddingModel', () => ({
   upsertMany: jest.fn(),
@@ -16,7 +16,7 @@ jest.mock('../src/models/gmailSyncCursorModel', () => ({
 
 const { ingestNewEmailsForUser } = require('../src/services/gmail/ingestionService');
 const { getAuthorizedGmail } = require('../src/services/gmail/client');
-const { embedText } = require('../src/services/ai/embeddingService');
+const { embedTextWithUsage } = require('../src/services/ai/embeddingService');
 const emailEmbeddings = require('../src/models/emailEmbeddingModel');
 const gmailSyncCursor = require('../src/models/gmailSyncCursorModel');
 
@@ -36,7 +36,7 @@ describe('gmail ingestion service', () => {
     gmailSyncCursor.getByUserId.mockResolvedValue({ lastInternalDateMs: null });
     gmailSyncCursor.upsertCursor.mockResolvedValue({});
     emailEmbeddings.upsertMany.mockResolvedValue([{ gmailMessageId: 'm1' }, { gmailMessageId: 'm2' }]);
-    embedText.mockResolvedValue([0.1, 0.2, 0.3]);
+    embedTextWithUsage.mockResolvedValue({ embedding: [0.1, 0.2, 0.3] });
 
     gmailStub.users.messages.list.mockResolvedValue({
       data: { messages: [{ id: 'm1' }, { id: 'm2' }], nextPageToken: null },
@@ -64,7 +64,7 @@ describe('gmail ingestion service', () => {
     expect(getAuthorizedGmail).toHaveBeenCalledWith(123);
     expect(gmailStub.users.messages.list).toHaveBeenCalled();
     expect(gmailStub.users.messages.get).toHaveBeenCalledTimes(2);
-    expect(embedText).toHaveBeenCalled();
+    expect(embedTextWithUsage).toHaveBeenCalled();
     expect(emailEmbeddings.upsertMany).toHaveBeenCalledWith(
       123,
       expect.arrayContaining([

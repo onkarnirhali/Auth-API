@@ -9,6 +9,14 @@ const { ensurePrompt, normalizeResponse } = require('../utils');
 function createOpenAiProvider(config) {
   const client = new OpenAI({ apiKey: config.apiKey });
 
+  function normalizeUsage(usage) {
+    if (!usage) return null;
+    const promptTokens = typeof usage.prompt_tokens === 'number' ? usage.prompt_tokens : null;
+    const completionTokens = typeof usage.completion_tokens === 'number' ? usage.completion_tokens : null;
+    const totalTokens = typeof usage.total_tokens === 'number' ? usage.total_tokens : null;
+    return { promptTokens, completionTokens, totalTokens };
+  }
+
   return {
     name: 'openai',
     async generate({ systemPrompt, userPrompt, temperature, maxTokens }) {
@@ -24,11 +32,12 @@ function createOpenAiProvider(config) {
           ],
         });
         const choice = response.choices?.[0]?.message?.content || '';
-        return normalizeResponse({
+        const normalized = normalizeResponse({
           text: choice,
-          usage: response.usage || null,
+          usage: normalizeUsage(response.usage),
           raw: response,
         });
+        return { ...normalized, provider: 'openai', model: config.model };
       } catch (err) {
         const message = err?.message || 'OpenAI request failed';
         const code = err?.code || err?.status || 'OPENAI_ERROR';
@@ -50,7 +59,12 @@ function createOpenAiProvider(config) {
         if (!Array.isArray(embedding)) {
           throw new AiProviderError('OpenAI embedding response missing embedding', { provider: 'openai' });
         }
-        return { embedding };
+        return {
+          embedding,
+          usage: normalizeUsage(response.usage),
+          provider: 'openai',
+          model: config.embedModel || 'text-embedding-3-small',
+        };
       } catch (err) {
         const message = err?.message || 'OpenAI embedding request failed';
         const code = err?.code || err?.status || 'OPENAI_EMBED_ERROR';

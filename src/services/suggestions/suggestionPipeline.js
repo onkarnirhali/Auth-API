@@ -6,7 +6,9 @@ const aiSuggestions = require('../../models/aiSuggestionModel');
 const { ingestNewEmailsForUser } = require('../gmail/ingestionService');
 const { ingestNewOutlookEmails } = require('../outlook/ingestionService');
 const { getRelevantEmailContexts } = require('./retrievalService');
-const { generateSuggestionsFromContexts } = require('../ai/suggestionGenerator');
+const { generateSuggestionsFromContextsWithUsage } = require('../ai/suggestionGenerator');
+const { logEventSafe } = require('../eventService');
+const { logGenerationUsage } = require('../ai/tokenUsageService');
 
 async function refreshSuggestionsForUser(userId, options = {}) {
   if (!userId) throw new Error('userId is required to refresh suggestions');
@@ -37,8 +39,32 @@ async function refreshSuggestionsForUser(userId, options = {}) {
     return { ingested: ingestResult, suggestions: [], contexts: [] };
   }
 
-  const generated = await generateSuggestionsFromContexts(contexts);
-  const stored = await aiSuggestions.replaceForUser(userId, generated);
+  const generatedResult = await generateSuggestionsFromContextsWithUsage(contexts);
+  const stored = await aiSuggestions.replaceForUser(userId, generatedResult.suggestions);
+  await logGenerationUsage({
+    userId,
+    requestId: options.requestId || null,
+    ipAddress: options.ipAddress || null,
+    userAgent: options.userAgent || null,
+    source: options.source || 'ai',
+    usage: generatedResult.usage,
+    provider: generatedResult.provider,
+    model: generatedResult.model,
+    purpose: 'suggestions',
+  });
+  await logEventSafe({
+    type: 'ai.suggestions.generated',
+    userId,
+    requestId: options.requestId || null,
+    ipAddress: options.ipAddress || null,
+    userAgent: options.userAgent || null,
+    source: options.source || 'ai',
+    metadata: {
+      suggestionsCount: stored.length,
+      contextsUsed: contexts.length,
+      providersIngested: Object.keys(ingestResult || {}).filter((k) => !!ingestResult[k]),
+    },
+  });
   return {
     ingested: ingestResult,
     suggestions: stored,

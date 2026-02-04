@@ -3,7 +3,7 @@
 const { listInbox } = require('./client');
 const outlookSyncCursor = require('../../models/outlookSyncCursorModel');
 const emailEmbeddings = require('../../models/emailEmbeddingModel');
-const { embedText } = require('../ai/embeddingService');
+const { embedTextWithUsage } = require('../ai/embeddingService');
 const { summarizeEmailText } = require('../ai/emailSummaryService');
 
 const MAX_MESSAGES = Number(process.env.AI_OUTLOOK_MAX_MESSAGES || process.env.AI_GMAIL_MAX_MESSAGES || 50) || 50;
@@ -79,7 +79,12 @@ async function ingestNewOutlookEmails(userId) {
     } catch (_) {
       summary = safeText.slice(0, 8000);
     }
-    const embedding = await embedText(summary || safeText);
+    const embedded = await embedTextWithUsage(summary || safeText, {
+      userId,
+      source: 'outlook',
+      purpose: 'email_ingest',
+    });
+    const embedding = embedded ? embedded.embedding : null;
     embeddings.push({
       gmailMessageId: `outlook:${msg.outlookMessageId}`,
       gmailThreadId: msg.outlookThreadId ? `outlook:${msg.outlookThreadId}` : null,

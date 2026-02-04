@@ -12,6 +12,15 @@ function createOllamaProvider(config) {
     timeout: config.timeoutMs,
   });
 
+  function normalizeUsage(data) {
+    const promptTokens = typeof data?.prompt_eval_count === 'number' ? data.prompt_eval_count : null;
+    const completionTokens = typeof data?.eval_count === 'number' ? data.eval_count : null;
+    const totalTokens = (typeof promptTokens === 'number' && typeof completionTokens === 'number')
+      ? promptTokens + completionTokens
+      : (typeof data?.total_tokens === 'number' ? data.total_tokens : null);
+    return { promptTokens, completionTokens, totalTokens };
+  }
+
   return {
     name: 'ollama',
     async generate({ systemPrompt, userPrompt, temperature }) {
@@ -29,11 +38,12 @@ function createOllamaProvider(config) {
           },
         });
         const text = data?.response || '';
-        return normalizeResponse({
+        const normalized = normalizeResponse({
           text,
-          usage: null,
+          usage: normalizeUsage(data),
           raw: data,
         });
+        return { ...normalized, provider: 'ollama', model: config.model };
       } catch (err) {
         const status = err?.response?.status || err?.code;
         const message = err?.response?.data?.error || err?.message || 'Ollama request failed';
@@ -55,7 +65,12 @@ function createOllamaProvider(config) {
         if (!Array.isArray(embedding)) {
           throw new AiProviderError('Ollama embedding response missing embedding', { provider: 'ollama' });
         }
-        return { embedding };
+        return {
+          embedding,
+          usage: normalizeUsage(data),
+          provider: 'ollama',
+          model: config.embedModel || config.model,
+        };
       } catch (err) {
         const status = err?.response?.status || err?.code;
         const message = err?.response?.data?.error || err?.message || 'Ollama embedding failed';

@@ -56,6 +56,7 @@ MS_REDIRECT_URI=http://localhost:4000/auth/outlook/callback
 MS_TENANT=common
 MS_TOKEN_ENC_KEY= # 32-byte base64 (e.g., openssl rand -base64 32)
 MS_GRAPH_SCOPES=\"openid profile email offline_access https://graph.microsoft.com/Mail.Read https://graph.microsoft.com/Calendars.Read\"
+USER_LAST_ACTIVE_MINUTES=5
 ```
 
 ### Google OAuth & Gmail access
@@ -97,6 +98,39 @@ MS_GRAPH_SCOPES=\"openid profile email offline_access https://graph.microsoft.co
   - Callback: `GET /auth/outlook/callback` exchanges code, stores encrypted refresh token, links provider.
   - Data endpoints: `/outlook/emails`, `/outlook/calendar`.
   - Outlook emails are ingested into the AI suggestions pipeline alongside Gmail; IDs are prefixed with `outlook:` to avoid collisions.
+
+## Admin Promotion (one-time)
+Promote an existing user (created via OAuth login) to admin:
+```
+cd Auth-API
+npm run admin:promote -- --email someone@example.com
+```
+If the user is not found, the script exits non-zero and explains that the user must login once first.
+
+## Events / Audit Logs
+Events are written best-effort to the `events` table (failures are logged but do not block requests).
+Emitted types:
+- `auth.login.success`
+- `auth.refresh.success`
+- `auth.refresh.failed`
+- `todo.created`
+- `todo.completed`
+- `ai.suggestions.generated`
+- `ai.suggestions.accepted`
+- `ai.tokens.generation`
+- `ai.tokens.embedding`
+
+Event schema includes: `type`, `user_id`, `request_id`, `ip_address`, `user_agent`, `source`, `metadata`, `created_at`.
+
+## Admin API (role = admin)
+Endpoints (all require admin role):
+- `GET /admin/summary` → totals (active users in last 24h, total users)
+- `GET /admin/users?limit=25&offset=0` → per-user metrics
+- `GET /admin/events?limit=25&offset=0` → audit log (paginated)
+- `GET /admin/integrations?limit=25&offset=0` → provider link status
+
+Active users are calculated using `users.last_active_at` (updated on authenticated requests with a throttle window).
+Token usage metrics are split into generation vs. embedding based on `ai.tokens.generation` and `ai.tokens.embedding` events.
 
 ### AI helper endpoints
 - `POST /ai/rephrase` (auth required) — body: `{ "description": "pay rent tmw" }`. Returns `{ "rephrased": "Pay the rent tomorrow morning." }`.

@@ -80,21 +80,28 @@ function parseJsonResponse(text) {
   }
 }
 
-async function generateSuggestionsFromContexts(contexts) {
+async function generateSuggestionsFromContextsWithUsage(contexts) {
   if (!Array.isArray(contexts) || contexts.length === 0) {
-    return [];
+    return { suggestions: [], usage: null, provider: null, model: null };
   }
 
   const userPrompt = buildUserPrompt(contexts);
-  const { text } = await generateText({
+  const { text, usage, provider, model } = await generateText({
     systemPrompt: SYSTEM_PROMPT,
     userPrompt,
     temperature: Number(process.env.AI_SUGGESTION_TEMPERATURE || 0.2),
     maxTokens: Number(process.env.AI_SUGGESTION_MAX_TOKENS || 500),
   });
-  return parseJsonResponse(text);
+  const suggestions = parseJsonResponse(text);
+  return { suggestions, usage, provider, model };
+}
+
+async function generateSuggestionsFromContexts(contexts) {
+  const result = await generateSuggestionsFromContextsWithUsage(contexts);
+  return result.suggestions || [];
 }
 
 module.exports = {
   generateSuggestionsFromContexts,
+  generateSuggestionsFromContextsWithUsage,
 };
