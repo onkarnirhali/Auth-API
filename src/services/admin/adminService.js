@@ -12,9 +12,9 @@ class AdminService {
     return { totalUsers, activeUsers24h };
   }
 
-  async listUsers({ limit, offset }) {
-    const total = await this.repo.countUsersTotal();
-    const items = await this.repo.listUsersWithMetrics({ limit, offset });
+  async listUsers({ limit, offset, role }) {
+    const total = await this.repo.countUsersTotal({ role });
+    const items = await this.repo.listUsersWithMetrics({ limit, offset, role });
     return { total, items };
   }
 
@@ -28,6 +28,10 @@ class AdminService {
     const total = await this.repo.countUsersTotal();
     const items = await this.repo.listIntegrations({ limit, offset });
     return { total, items };
+  }
+
+  async updateUserFlags({ id, role, isEnabled }) {
+    return this.repo.updateUserFlags({ id, role, isEnabled });
   }
 
   computeActiveSince(activeWindowHours) {

@@ -10,6 +10,7 @@ async function requireAuth(req, res, next) {
     const payload = jwt.verify(token, process.env.JWT_SECRET);
     const user = await users.findById(payload.userId);
     if (!user) return res.status(401).json({ error: 'Unauthorized' });
+    if (user.isEnabled === false) return res.status(403).json({ error: 'Account disabled' });
     req.user = user;
     // Best-effort: update last_active_at with throttling to avoid frequent writes
     try {

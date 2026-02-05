@@ -5,8 +5,10 @@ class AdminRepository {
     this.pool = pool;
   }
 
-  async countUsersTotal() {
-    const { rows } = await this.pool.query('SELECT COUNT(*)::int AS total FROM users');
+  async countUsersTotal({ role } = {}) {
+    const { clause, params } = this.buildUserFilters({ role });
+    const query = `SELECT COUNT(*)::int AS total FROM users u ${clause}`;
+    const { rows } = await this.pool.query(query, params);
     return rows[0]?.total || 0;
   }
 
@@ -18,21 +20,28 @@ class AdminRepository {
     return rows[0]?.total || 0;
   }
 
-  async listUsersWithMetrics({ limit, offset }) {
-    const { rows } = await this.pool.query(
-      `
+  async listUsersWithMetrics({ limit, offset, role }) {
+    const { clause, params } = this.buildUserFilters({ role });
+    const query = `
       SELECT
         u.id,
         u.email,
         u.name,
         u.role,
+        u.provider_id,
+        u.provider_name,
         u.created_at,
+        u.updated_at,
         u.last_active_at,
+        u.is_enabled,
+        ot.account_email AS outlook_account_email,
+        ot.tenant_id AS outlook_tenant_id,
         COALESCE(gen.generated_count, 0) AS suggestions_generated,
         COALESCE(acc.accepted_count, 0) AS suggestions_accepted,
         COALESCE(tok.gen_tokens, 0) AS tokens_generation,
         COALESCE(tok.embed_tokens, 0) AS tokens_embedding
       FROM users u
+      LEFT JOIN outlook_tokens ot ON ot.user_id = u.id
       LEFT JOIN (
         SELECT user_id,
                SUM(COALESCE((metadata->>'suggestionsCount')::int, 0)) AS generated_count
@@ -55,12 +64,37 @@ class AdminRepository {
         WHERE type IN ('ai.tokens.generation', 'ai.tokens.embedding')
         GROUP BY user_id
       ) tok ON tok.user_id = u.id
+      ${clause}
       ORDER BY u.created_at DESC
-      LIMIT $1 OFFSET $2
-      `,
-      [limit, offset]
-    );
+      LIMIT $${params.length + 1} OFFSET $${params.length + 2}
+      `;
+    const { rows } = await this.pool.query(query, [...params, limit, offset]);
     return rows;
+  }
+
+  async updateUserFlags({ id, role, isEnabled }) {
+    const updates = [];
+    const params = [];
+    if (typeof role === 'string') {
+      params.push(role);
+      updates.push(`role = $${params.length}`);
+    }
+    if (typeof isEnabled === 'boolean') {
+      params.push(isEnabled);
+      updates.push(`is_enabled = $${params.length}`);
+    }
+    if (!updates.length) return null;
+    params.push(id);
+    const { rows } = await this.pool.query(
+      `
+      UPDATE users
+      SET ${updates.join(', ')}, updated_at = NOW()
+      WHERE id = $${params.length}
+      RETURNING id, email, name, provider_id, provider_name, role, is_enabled, created_at, updated_at, last_active_at;
+      `,
+      params
+    );
+    return rows[0] || null;
   }
 
   async listEvents({ limit, offset, type, userId }) {
@@ -118,6 +152,17 @@ class AdminRepository {
     if (userId) {
       params.push(userId);
       clauses.push(`e.user_id = $${params.length}`);
+    }
+    const clause = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
+    return { clause, params };
+  }
+
+  buildUserFilters({ role }) {
+    const clauses = [];
+    const params = [];
+    if (role) {
+      params.push(role);
+      clauses.push(`u.role = $${params.length}`);
     }
     const clause = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
     return { clause, params };

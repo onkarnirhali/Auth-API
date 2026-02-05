@@ -2,7 +2,7 @@
 
 const express = require('express');
 const { requireAuth, requireAdmin } = require('../middleware/authMiddleware');
-const { getSummary, listUsers, listEvents, listIntegrations } = require('../controllers/adminController');
+const { getSummary, listUsers, listEvents, listIntegrations, updateUser } = require('../controllers/adminController');
 
 const router = express.Router();
 
@@ -10,6 +10,7 @@ router.use(requireAuth, requireAdmin);
 
 router.get('/summary', getSummary);
 router.get('/users', listUsers);
+router.patch('/users/:id', updateUser);
 router.get('/events', listEvents);
 router.get('/integrations', listIntegrations);
 

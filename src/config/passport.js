@@ -28,6 +28,9 @@ passport.use(
         const email = String(primaryEmail).toLowerCase();
 
         let user = await users.findByEmail(email);
+        if (user && user.isEnabled === false) {
+          return done(null, false, { message: 'User disabled' });
+        }
         if (!user) {
           user = await users.create({
             email,

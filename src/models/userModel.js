@@ -8,6 +8,7 @@ const mapUser = (row) => ({
   providerId: row.provider_id,
   providerName: row.provider_name,
   role: row.role || 'user',
+  isEnabled: row.is_enabled !== false,
   lastActiveAt: row.last_active_at || null,
   createdAt: row.created_at,
   updatedAt: row.updated_at,

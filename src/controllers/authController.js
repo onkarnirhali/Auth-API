@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const tokens = require('../services/tokenService');
+const users = require('../models/userModel');
 const { logEventSafe } = require('../services/eventService');
 
 // Generate JWT access token
@@ -107,6 +108,32 @@ const refreshAccessToken = async (req, res) => {
         metadata: { reason: 'missing_user' },
       });
       return res.status(401).send('Unauthenticated');
+    }
+
+    const user = await users.findById(resolvedUserId);
+    if (!user) {
+      await logEventSafe({
+        type: 'auth.refresh.failed',
+        userId: resolvedUserId,
+        requestId: req.id,
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent'),
+        source: 'auth',
+        metadata: { reason: 'user_not_found' },
+      });
+      return res.status(401).send('Unauthenticated');
+    }
+    if (user.isEnabled === false) {
+      await logEventSafe({
+        type: 'auth.refresh.failed',
+        userId: resolvedUserId,
+        requestId: req.id,
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent'),
+        source: 'auth',
+        metadata: { reason: 'user_disabled' },
+      });
+      return res.status(403).send('Account disabled');
     }
 
     const valid = await tokens.verifyRefreshToken({ userId: resolvedUserId, token });
