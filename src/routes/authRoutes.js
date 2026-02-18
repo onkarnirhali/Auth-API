@@ -17,7 +17,22 @@ const googleAuthOptions = {
   accessType: 'offline',
   prompt: 'consent',
   includeGrantedScopes: true,
+  state: true,
 };
+
+function getMissingGoogleOAuthVars() {
+  const callback = process.env.NODE_ENV === 'production'
+    ? (process.env.GOOGLE_CALLBACK_URL_PROD || process.env.GOOGLE_CALLBACK_URL)
+    : (process.env.GOOGLE_CALLBACK_URL || process.env.GOOGLE_CALLBACK_URL_PROD);
+  const required = [
+    ['GOOGLE_CLIENT_ID', process.env.GOOGLE_CLIENT_ID],
+    ['GOOGLE_CLIENT_SECRET', process.env.GOOGLE_CLIENT_SECRET],
+    ['GOOGLE_CALLBACK_URL(_PROD)', callback],
+    ['JWT_SECRET', process.env.JWT_SECRET],
+    ['REFRESH_TOKEN_SECRET', process.env.REFRESH_TOKEN_SECRET],
+  ];
+  return required.filter(([, value]) => !value).map(([name]) => name);
+}
 
 // Simple ping to verify router mount
 router.get('/ping', (req, res) => res.json({ ok: true }));
@@ -30,10 +45,16 @@ const loginLimiter = rateLimit({
 });
 
 // OAuth routes: kickoff and callback for Google
-router.get('/google',
-  loginLimiter,
-  passport.authenticate('google', googleAuthOptions)
-);
+router.get('/google', loginLimiter, (req, res, next) => {
+  const missingVars = getMissingGoogleOAuthVars();
+  if (missingVars.length > 0) {
+    return res.status(503).json({
+      error: 'Google OAuth is not configured',
+      missing: missingVars,
+    });
+  }
+  return passport.authenticate('google', googleAuthOptions)(req, res, next);
+});
 
 router.get('/google/callback',
   passport.authenticate('google', { session: false, failureRedirect: '/auth/failure' }),

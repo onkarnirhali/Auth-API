@@ -24,7 +24,15 @@ async function callback(req, res, next) {
       const msg = description || error || 'Outlook authorization failed';
       return res.status(400).json({ error: { message: msg } });
     }
-    const decoded = verifyState(state);
+    if (!code) return res.status(400).json({ error: 'Missing authorization code' });
+    if (!state) return res.status(400).json({ error: 'Missing state' });
+
+    let decoded;
+    try {
+      decoded = verifyState(state);
+    } catch (_) {
+      return res.status(400).json({ error: 'Invalid state' });
+    }
     const userId = decoded?.uid;
     if (!userId) return res.status(400).json({ error: 'Invalid state' });
 

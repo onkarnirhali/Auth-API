@@ -4,6 +4,7 @@ const { rephraseDescription } = require('../services/ai/textService');
 const { AiProviderError } = require('../services/ai/errors');
 const aiSuggestions = require('../models/aiSuggestionModel');
 const { refreshSuggestionsForUser } = require('../services/suggestions/suggestionPipeline');
+const { enrichSuggestionSource, enrichSuggestionsWithSource } = require('../services/suggestions/suggestionSource');
 const { logEventSafe } = require('../services/eventService');
 
 // Rephrase a todo description using the configured LLM provider
@@ -35,7 +36,7 @@ async function listSuggestions(req, res) {
       limit: Number(req.query.limit) || 20,
       status: req.query.status || 'suggested',
     });
-    res.json({ suggestions });
+    res.json({ suggestions: suggestions.map((item) => enrichSuggestionSource(item)) });
   } catch (err) {
     console.error('Failed to list suggestions', err);
     res.status(500).json({ error: 'Failed to list AI suggestions' });
@@ -53,7 +54,7 @@ async function refreshSuggestions(req, res) {
       source: 'manual',
     });
     res.json({
-      suggestions: result.suggestions,
+      suggestions: enrichSuggestionsWithSource(result.suggestions, result.contexts),
       ingested: result.ingested,
       contextsUsed: result.contexts?.length || 0,
     });

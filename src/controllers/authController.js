@@ -17,6 +17,9 @@ const generateRefreshToken = (userId) => {
 // Handle successful login from Google OAuth: issues access/refresh cookies and redirects to frontend when configured
 const handleGoogleCallback = async (req, res) => {
   const user = req.user;
+  if (!user || !user.id) {
+    return res.status(401).json({ error: 'OAuth user context missing' });
+  }
 
   const accessToken = tokens.generateAccessToken(user.id);
   const refreshToken = tokens.generateRefreshToken();
@@ -47,7 +50,7 @@ const handleGoogleCallback = async (req, res) => {
     } catch (_) {}
   }
   // Fallback JSON response
-  return res.json({ success: true })
+  return res.json({ success: true });
 };
 
 // Handle logout: revoke refresh token if present and clear cookies

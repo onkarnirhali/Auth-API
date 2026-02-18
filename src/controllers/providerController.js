@@ -29,6 +29,7 @@ async function listProviders(req, res) {
     const outlookToken = await outlookTokens.findByUserId(userId);
 
     const hasGmail = links.find((l) => l.provider === 'gmail');
+    const hasOutlook = links.find((l) => l.provider === 'outlook');
     const providers = [...links];
 
     if (!hasGmail && gmailToken) {
@@ -54,15 +55,30 @@ async function listProviders(req, res) {
         lastSyncAt: null,
       });
     }
+    if (!hasOutlook && outlookToken) {
+      const linked = await providerLinks.upsertLink({
+        userId,
+        provider: 'outlook',
+        linked: true,
+        ingestEnabled: true,
+        metadata: {
+          accountEmail: outlookToken.accountEmail || null,
+          tenantId: outlookToken.tenantId || null,
+        },
+        lastLinkedAt: outlookToken.updatedAt || new Date(),
+      });
+      providers.push(linked);
+    }
+
     // Add outlook placeholder if missing
     if (!providers.find((p) => p.provider === 'outlook')) {
       providers.push({
         provider: 'outlook',
-        linked: !!outlookToken,
-        ingestEnabled: !!outlookToken,
-        lastLinkedAt: outlookToken ? outlookToken.updatedAt : null,
+        linked: false,
+        ingestEnabled: false,
+        lastLinkedAt: null,
         lastSyncAt: null,
-        metadata: outlookToken ? { accountEmail: outlookToken.accountEmail, tenantId: outlookToken.tenantId } : {},
+        metadata: {},
       });
     } else if (outlookToken) {
       // merge token metadata into existing link
