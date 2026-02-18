@@ -64,6 +64,18 @@ function buildSourceFields(providers) {
 }
 
 function enrichSuggestionSource(suggestion, contextProviderMap = null) {
+  const existingSource = String(suggestion?.metadata?.source || '').toLowerCase().trim();
+  if (existingSource === 'task_history') {
+    return {
+      ...suggestion,
+      metadata: {
+        ...(suggestion?.metadata || {}),
+        source: 'task_history',
+        sourceLabel: suggestion?.metadata?.sourceLabel || 'Learned from previous tasks',
+      },
+    };
+  }
+
   const providers = resolveProvidersForSuggestion(suggestion, contextProviderMap);
   const sourceFields = buildSourceFields(providers);
   return {

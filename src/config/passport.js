@@ -3,7 +3,7 @@ const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const users = require('../models/userModel');
 const gmailTokens = require('../models/gmailTokenModel');
-const providerLinks = require('../models/providerLinkModel');
+const { connectProviderPolicy } = require('../services/providerConnection/providerConnectionService');
 const { getGoogleScopes } = require('../utils/googleScopes');
 
 const callbackURL = process.env.NODE_ENV === 'production'
@@ -60,13 +60,9 @@ passport.use(
         }
 
         try {
-          await providerLinks.upsertLink({
-            userId: user.id,
-            provider: 'gmail',
-            linked: true,
-            ingestEnabled: true,
-            metadata: { scope: tokenScope || null },
+          await connectProviderPolicy(user.id, 'gmail', {
             lastLinkedAt: new Date(),
+            metadata: { scope: tokenScope || null },
           });
         } catch (linkErr) {
           console.error('Failed to persist Gmail provider link', linkErr);

@@ -63,7 +63,12 @@ async function findByUserId(userId) {
   return rows[0] ? mapRow(rows[0]) : null;
 }
 
+async function removeByUserId(userId) {
+  await pool.query('DELETE FROM gmail_tokens WHERE user_id = $1', [userId]);
+}
+
 module.exports = {
   upsertToken,
   findByUserId,
+  removeByUserId,
 };

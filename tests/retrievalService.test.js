@@ -28,7 +28,9 @@ describe('retrieval service', () => {
     emailEmbeddings.searchSimilar.mockResolvedValue([{ gmailMessageId: 'm1' }]);
     const contexts = await getRelevantEmailContexts(42);
     expect(embedTextWithUsage).toHaveBeenCalled();
-    expect(emailEmbeddings.searchSimilar).toHaveBeenCalledWith(42, [0.1, 0.2], expect.any(Number));
+    expect(emailEmbeddings.searchSimilar).toHaveBeenCalledWith(42, [0.1, 0.2], expect.any(Number), {
+      allowedProviders: null,
+    });
     expect(contexts).toHaveLength(1);
   });
 
@@ -36,7 +38,17 @@ describe('retrieval service', () => {
     embedTextWithUsage.mockRejectedValue(new Error('no embed'));
     emailEmbeddings.listRecent.mockResolvedValue([{ gmailMessageId: 'recent' }]);
     const contexts = await getRelevantEmailContexts(99);
-    expect(emailEmbeddings.listRecent).toHaveBeenCalled();
+    expect(emailEmbeddings.listRecent).toHaveBeenCalledWith(99, expect.any(Number), {
+      allowedProviders: null,
+    });
     expect(contexts[0].gmailMessageId).toBe('recent');
+  });
+
+  test('returns empty when no providers are allowed', async () => {
+    const contexts = await getRelevantEmailContexts(11, { allowedProviders: [] });
+    expect(contexts).toEqual([]);
+    expect(embedTextWithUsage).not.toHaveBeenCalled();
+    expect(emailEmbeddings.searchSimilar).not.toHaveBeenCalled();
+    expect(emailEmbeddings.listRecent).not.toHaveBeenCalled();
   });
 });

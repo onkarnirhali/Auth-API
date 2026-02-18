@@ -1,7 +1,8 @@
 'use strict';
 
 const outlookTokens = require('../models/outlookTokenModel');
-const providerLinks = require('../models/providerLinkModel');
+const { logEventSafe } = require('../services/eventService');
+const { connectProviderPolicy } = require('../services/providerConnection/providerConnectionService');
 const { buildAuthorizeUrl, verifyState, exchangeCodeForToken, decodeIdToken } = require('../services/outlook/oauthService');
 const { setAuthCookies, generateAccessToken, generateRefreshToken, storeRefreshToken } = require('../services/tokenService');
 const users = require('../models/userModel');
@@ -53,15 +54,21 @@ async function callback(req, res, next) {
       accountEmail,
     });
 
-    // mark provider linked
-    await providerLinks.upsertLink({
-      userId,
-      provider: 'outlook',
-      linked: true,
-      ingestEnabled: true,
-      metadata: { tenantId, accountEmail },
+    await connectProviderPolicy(userId, 'outlook', {
       lastLinkedAt: new Date(),
-      lastSyncAt: null,
+      metadata: { tenantId, accountEmail },
+    });
+    await logEventSafe({
+      type: 'provider.connected',
+      userId,
+      requestId: req.id,
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent'),
+      source: 'oauth',
+      metadata: {
+        provider: 'outlook',
+        ingestEnabled: true,
+      },
     });
 
     // Ensure user session cookies still present; if not, issue fresh based on existing user

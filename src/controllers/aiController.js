@@ -5,6 +5,8 @@ const { AiProviderError } = require('../services/ai/errors');
 const aiSuggestions = require('../models/aiSuggestionModel');
 const { refreshSuggestionsForUser } = require('../services/suggestions/suggestionPipeline');
 const { enrichSuggestionSource, enrichSuggestionsWithSource } = require('../services/suggestions/suggestionSource');
+const { getTaskHistoryStats, isTaskHistoryEligible } = require('../services/suggestions/taskHistorySuggestionService');
+const { resolveSuggestionEligibility } = require('../services/suggestions/suggestionEligibilityService');
 const { logEventSafe } = require('../services/eventService');
 
 // Rephrase a todo description using the configured LLM provider
@@ -36,7 +38,18 @@ async function listSuggestions(req, res) {
       limit: Number(req.query.limit) || 20,
       status: req.query.status || 'suggested',
     });
-    res.json({ suggestions: suggestions.map((item) => enrichSuggestionSource(item)) });
+    const stats = await getTaskHistoryStats(req.user.id);
+    const { eligibility } = await resolveSuggestionEligibility(req.user.id, {
+      historyReady: isTaskHistoryEligible(stats),
+    });
+    const reasonCode = suggestions.length === 0 ? eligibility.reasonCode : undefined;
+    res.json({
+      suggestions: suggestions.map((item) => enrichSuggestionSource(item)),
+      context: {
+        mode: eligibility.mode,
+        ...(reasonCode ? { reasonCode } : {}),
+      },
+    });
   } catch (err) {
     console.error('Failed to list suggestions', err);
     res.status(500).json({ error: 'Failed to list AI suggestions' });
@@ -55,6 +68,7 @@ async function refreshSuggestions(req, res) {
     });
     res.json({
       suggestions: enrichSuggestionsWithSource(result.suggestions, result.contexts),
+      context: result.context,
       ingested: result.ingested,
       contextsUsed: result.contexts?.length || 0,
     });

@@ -9,6 +9,25 @@ const vectorLiteral = (embedding) => {
   return `[${embedding.join(',')}]`;
 };
 
+function normalizeAllowedProviders(providers) {
+  if (!Array.isArray(providers)) return null;
+  const list = providers
+    .map((provider) => String(provider || '').toLowerCase().trim())
+    .filter((provider) => provider === 'gmail' || provider === 'outlook');
+  if (list.length === 0) return [];
+  return Array.from(new Set(list));
+}
+
+function buildProviderClause(allowedProviders) {
+  const providers = normalizeAllowedProviders(allowedProviders);
+  if (providers === null || providers.length === 2) return '';
+  if (providers.length === 0) return ' AND 1=0 ';
+  if (providers[0] === 'gmail') {
+    return " AND (gmail_message_id IS NOT NULL AND gmail_message_id NOT LIKE 'outlook:%') ";
+  }
+  return " AND gmail_message_id LIKE 'outlook:%' ";
+}
+
 const mapRow = (row) => ({
   id: row.id,
   userId: row.user_id,
@@ -75,18 +94,20 @@ async function upsertMany(userId, items) {
   }
 }
 
-async function searchSimilar(userId, queryEmbedding, limit = 10) {
+async function searchSimilar(userId, queryEmbedding, limit = 10, options = {}) {
   if (!userId) throw new Error('userId required for search');
   if (!Array.isArray(queryEmbedding) || queryEmbedding.length === 0) {
     throw new Error('queryEmbedding required for search');
   }
   const vector = vectorLiteral(queryEmbedding);
+  const providerClause = buildProviderClause(options.allowedProviders);
   const { rows } = await pool.query(
     `
     SELECT id, user_id, gmail_message_id, gmail_thread_id, subject, snippet, plain_text, sent_at, metadata,
            embedding <-> $2::vector AS distance, created_at, updated_at
     FROM email_embeddings
     WHERE user_id = $1 AND embedding IS NOT NULL
+    ${providerClause}
     ORDER BY embedding <-> $2::vector
     LIMIT $3;
     `,
@@ -95,12 +116,14 @@ async function searchSimilar(userId, queryEmbedding, limit = 10) {
   return rows.map(mapRow);
 }
 
-async function listRecent(userId, limit = 20) {
+async function listRecent(userId, limit = 20, options = {}) {
+  const providerClause = buildProviderClause(options.allowedProviders);
   const { rows } = await pool.query(
     `
     SELECT id, user_id, gmail_message_id, gmail_thread_id, subject, snippet, plain_text, sent_at, metadata, created_at, updated_at
     FROM email_embeddings
     WHERE user_id = $1
+    ${providerClause}
     ORDER BY created_at DESC
     LIMIT $2;
     `,
