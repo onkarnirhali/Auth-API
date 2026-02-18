@@ -11,6 +11,7 @@
 | 2026-02-18-api-alpha-suggestion-source | 2026-02-18 | API-ALPHA-003 | direct | Added source metadata enrichment for AI suggestions so clients can show Gmail/Outlook origin labels. | jest --runInBand | approved |
 | 2026-02-18-api-provider-connection-service | 2026-02-18 | API-ALPHA-002 | direct | Added dedicated provider connection service and switched provider policy handling to user_provider_links authority with disconnect token deletion. | npm test | approved |
 | 2026-02-18-api-suggestion-source-control | 2026-02-18 | API-ALPHA-003 | direct | Added provider-aware suggestion eligibility, task-history fallback, merged source control, and context reason codes for none-mode scenarios. | npm test | approved |
+| 2026-02-18-api-provider-status-backfill | 2026-02-18 | API-ALPHA-002 | direct | Backfilled provider link policy from existing OAuth tokens for legacy users so connected Gmail/Outlook status renders correctly without overriding explicit disconnects. | npm test | approved |
 
 ## Change Entry Contract
 

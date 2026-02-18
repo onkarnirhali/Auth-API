@@ -1,6 +1,8 @@
 'use strict';
 
 const providerLinks = require('../../models/providerLinkModel');
+const gmailTokens = require('../../models/gmailTokenModel');
+const outlookTokens = require('../../models/outlookTokenModel');
 
 const SUPPORTED_PROVIDERS = ['gmail', 'outlook'];
 
@@ -38,6 +40,59 @@ function sortPolicies(policies) {
   return [...policies].sort((a, b) => SUPPORTED_PROVIDERS.indexOf(a.provider) - SUPPORTED_PROVIDERS.indexOf(b.provider));
 }
 
+function shouldBackfillFromToken(policy) {
+  if (!policy) return true;
+  if (policy.linked || policy.ingestEnabled) return false;
+  // Do not override explicit disconnects where the user had previously linked.
+  // Placeholder rows created by bootstrap have lastLinkedAt = null.
+  return !policy.lastLinkedAt;
+}
+
+async function reconcilePoliciesWithTokens(userId, policies) {
+  const map = new Map((policies || []).map((policy) => [policy.provider, policy]));
+  const [gmailToken, outlookToken] = await Promise.all([
+    gmailTokens.findByUserId(userId).catch(() => null),
+    outlookTokens.findByUserId(userId).catch(() => null),
+  ]);
+
+  const gmailPolicy = map.get('gmail') || buildPolicyDefaults('gmail');
+  if (gmailToken && shouldBackfillFromToken(gmailPolicy)) {
+    const updated = await providerLinks.upsertLink({
+      userId,
+      provider: 'gmail',
+      linked: true,
+      ingestEnabled: true,
+      metadata: {
+        ...(gmailPolicy.metadata || {}),
+        scope: gmailToken.scope || null,
+      },
+      lastLinkedAt: new Date(),
+      lastSyncAt: gmailPolicy.lastSyncAt || null,
+    });
+    map.set('gmail', toPolicy(updated));
+  }
+
+  const outlookPolicy = map.get('outlook') || buildPolicyDefaults('outlook');
+  if (outlookToken && shouldBackfillFromToken(outlookPolicy)) {
+    const updated = await providerLinks.upsertLink({
+      userId,
+      provider: 'outlook',
+      linked: true,
+      ingestEnabled: true,
+      metadata: {
+        ...(outlookPolicy.metadata || {}),
+        accountEmail: outlookToken.accountEmail || null,
+        tenantId: outlookToken.tenantId || null,
+      },
+      lastLinkedAt: outlookToken.updatedAt || new Date(),
+      lastSyncAt: outlookPolicy.lastSyncAt || null,
+    });
+    map.set('outlook', toPolicy(updated));
+  }
+
+  return sortPolicies(Array.from(map.values()));
+}
+
 async function ensurePolicies(userId) {
   const existingLinks = await providerLinks.listByUser(userId);
   const map = new Map(existingLinks.map((link) => [normalizeProvider(link.provider), toPolicy(link)]));
@@ -57,7 +112,7 @@ async function ensurePolicies(userId) {
     }
   }
 
-  return sortPolicies(Array.from(map.values()));
+  return reconcilePoliciesWithTokens(userId, sortPolicies(Array.from(map.values())));
 }
 
 function findPolicy(policies, provider) {
