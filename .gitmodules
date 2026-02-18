@@ -1,0 +1,3 @@
+[submodule "docs/agents/_core_src"]
+	path = docs/agents/_core_src
+	url = https://github.com/onkarnirhali/agents-playbook.git
