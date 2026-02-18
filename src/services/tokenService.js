@@ -1,19 +1,10 @@
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const pool = require('../config/db');
+const { buildAuthCookieOptions } = require('../utils/cookies');
 
 const ACCESS_EXPIRES_SEC = 15 * 60; // 15m
 const REFRESH_EXPIRES_SEC = 7 * 24 * 60 * 60; // 7d
-
-function cookieBase() {
-  return {
-    httpOnly: true,
-    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-    secure: process.env.NODE_ENV === 'production',
-    domain: process.env.COOKIE_DOMAIN || undefined,
-    path: '/',
-  };
-}
 
 function generateAccessToken(userId) {
   return jwt.sign({ userId }, process.env.JWT_SECRET, { expiresIn: ACCESS_EXPIRES_SEC });
@@ -64,7 +55,7 @@ async function revokeAllUserTokens(userId) {
 }
 
 function setAuthCookies(res, { accessToken, refreshToken }) {
-  const base = cookieBase();
+  const base = buildAuthCookieOptions();
   res
     .cookie('accessToken', accessToken, { ...base, maxAge: ACCESS_EXPIRES_SEC * 1000 })
     .cookie('refreshToken', refreshToken, { ...base, maxAge: REFRESH_EXPIRES_SEC * 1000 });

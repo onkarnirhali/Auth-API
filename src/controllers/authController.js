@@ -2,6 +2,7 @@ const jwt = require('jsonwebtoken');
 const tokens = require('../services/tokenService');
 const users = require('../models/userModel');
 const { logEventSafe } = require('../services/eventService');
+const { getAllowedRedirectBase } = require('../utils/redirects');
 
 // Generate JWT access token
 const generateAccessToken = (userId) => {
@@ -25,18 +26,7 @@ const handleGoogleCallback = async (req, res) => {
     userAgent: req.get('user-agent'),
     ip: req.ip,
   });
-
-  const cookieBase = {
-    httpOnly: true,
-    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-    secure: process.env.NODE_ENV === 'production',
-    domain: process.env.COOKIE_DOMAIN || undefined,
-    path: '/',
-  };
-
-  res
-    .cookie('accessToken', accessToken, { ...cookieBase, maxAge: 15 * 60 * 1000 })
-    .cookie('refreshToken', refreshToken, { ...cookieBase, maxAge: 7 * 24 * 60 * 60 * 1000 });
+  tokens.setAuthCookies(res, { accessToken, refreshToken });
 
   await logEventSafe({
     type: 'auth.login.success',
@@ -49,11 +39,7 @@ const handleGoogleCallback = async (req, res) => {
   });
 
   // Prefer redirect to frontend after successful login; allowlist to prevent open redirects
-  const allowed = (process.env.ALLOWED_REDIRECTS || process.env.FRONTEND_URL || process.env.CORS_ORIGIN || '')
-    .split(',')
-    .map((v) => v.trim())
-    .filter(Boolean);
-  const frontend = allowed[0] || null;
+  const frontend = getAllowedRedirectBase();
   const redirectPath = process.env.LOGIN_SUCCESS_REDIRECT_PATH || '/app';
   if (frontend) {
     try {
@@ -155,17 +141,8 @@ const refreshAccessToken = async (req, res) => {
     await tokens.storeRefreshToken({ userId: resolvedUserId, token: newRefresh, userAgent: req.get('user-agent'), ip: req.ip });
 
     const newAccessToken = tokens.generateAccessToken(resolvedUserId);
-    const cookieBase = {
-      httpOnly: true,
-      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-      secure: process.env.NODE_ENV === 'production',
-      domain: process.env.COOKIE_DOMAIN || undefined,
-      path: '/',
-    };
-    res
-      .cookie('accessToken', newAccessToken, { ...cookieBase, maxAge: 15 * 60 * 1000 })
-      .cookie('refreshToken', newRefresh, { ...cookieBase, maxAge: 7 * 24 * 60 * 60 * 1000 })
-      .send('Access token refreshed');
+    tokens.setAuthCookies(res, { accessToken: newAccessToken, refreshToken: newRefresh });
+    res.send('Access token refreshed');
     await logEventSafe({
       type: 'auth.refresh.success',
       userId: resolvedUserId,

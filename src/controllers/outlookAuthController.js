@@ -5,14 +5,7 @@ const providerLinks = require('../models/providerLinkModel');
 const { buildAuthorizeUrl, verifyState, exchangeCodeForToken, decodeIdToken } = require('../services/outlook/oauthService');
 const { setAuthCookies, generateAccessToken, generateRefreshToken, storeRefreshToken } = require('../services/tokenService');
 const users = require('../models/userModel');
-
-function getRedirectBase() {
-  const allowed = (process.env.ALLOWED_REDIRECTS || process.env.FRONTEND_URL || process.env.CORS_ORIGIN || '')
-    .split(',')
-    .map((v) => v.trim())
-    .filter(Boolean);
-  return allowed[0] || null;
-}
+const { getAllowedRedirectBase } = require('../utils/redirects');
 
 async function start(req, res, next) {
   try {
@@ -75,7 +68,7 @@ async function callback(req, res, next) {
       }
     }
 
-    const frontend = getRedirectBase();
+    const frontend = getAllowedRedirectBase();
     const redirectPath = process.env.LOGIN_SUCCESS_REDIRECT_PATH || '/app';
     if (frontend) {
       return res.redirect(302, `${frontend}${redirectPath}?outlook=connected`);

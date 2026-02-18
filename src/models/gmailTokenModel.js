@@ -1,6 +1,7 @@
 'use strict';
 
 const pool = require('../config/db');
+const { normalizeScope } = require('../utils/scopes');
 
 // Persists Google OAuth tokens (access/refresh) per user for Gmail access
 const mapRow = (row) => ({
@@ -14,12 +15,6 @@ const mapRow = (row) => ({
   createdAt: row.created_at,
   updatedAt: row.updated_at,
 });
-
-const normalizeScope = (scope) => {
-  if (!scope) return null;
-  if (Array.isArray(scope)) return scope.join(' ');
-  return scope;
-};
 
 async function upsertToken({ userId, accessToken, refreshToken, tokenType, scope, expiresAt }) {
   if (!userId || !accessToken) {

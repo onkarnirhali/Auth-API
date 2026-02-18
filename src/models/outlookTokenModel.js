@@ -2,6 +2,7 @@
 
 const pool = require('../config/db');
 const { encrypt, decrypt } = require('../utils/encryption');
+const { normalizeScope } = require('../utils/scopes');
 
 const mapRow = (row) => ({
   id: row.id,
@@ -16,12 +17,6 @@ const mapRow = (row) => ({
   createdAt: row.created_at,
   updatedAt: row.updated_at,
 });
-
-const normalizeScope = (scope) => {
-  if (!scope) return null;
-  if (Array.isArray(scope)) return scope.join(' ');
-  return scope;
-};
 
 async function upsertToken({ userId, accessToken, refreshToken, tokenType, scope, expiresAt, tenantId, accountEmail }) {
   if (!userId || !accessToken || !refreshToken) {
