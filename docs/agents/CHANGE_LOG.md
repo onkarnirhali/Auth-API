@@ -13,7 +13,11 @@
 | 2026-02-18-api-suggestion-source-control | 2026-02-18 | API-ALPHA-003 | direct | Added provider-aware suggestion eligibility, task-history fallback, merged source control, and context reason codes for none-mode scenarios. | npm test | approved |
 | 2026-02-18-api-provider-status-backfill | 2026-02-18 | API-ALPHA-002 | direct | Backfilled provider link policy from existing OAuth tokens for legacy users so connected Gmail/Outlook status renders correctly without overriding explicit disconnects. | npm test | approved |
 
+| 2026-02-18-governance-followup-automation | 2026-02-18 | DOC-BOOTSTRAP-001 | direct | Repaired governance markdown corruption and added branch-protection follow-up runbook plus automation script for required status checks. | node tools/agents/validate-governance.mjs; powershell PSParser syntax check for tools/agents/configure-branch-protection.ps1 | approved |
+
 ## Change Entry Contract
 
 - alignment: `direct` or `partial` or `none`
 - decision: `approved` or `revise` or `blocked`
+
+

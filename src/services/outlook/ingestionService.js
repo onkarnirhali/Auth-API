@@ -9,6 +9,10 @@ const { summarizeEmailText } = require('../ai/emailSummaryService');
 const MAX_MESSAGES = Number(process.env.AI_OUTLOOK_MAX_MESSAGES || process.env.AI_GMAIL_MAX_MESSAGES || 50) || 50;
 const SUMMARY_INPUT_MAX_CHARS = Number(process.env.AI_SUMMARY_MAX_INPUT_CHARS || 12000) || 12000;
 const SINGLE_EMAIL_SUMMARY_WORDS = Number(process.env.AI_EMAIL_SUMMARY_MAX_WORDS_SINGLE || 300) || 300;
+const TRUNCATED_REASON = {
+  MANUAL_CAP: 'MANUAL_CAP',
+  TIME_BUDGET: 'TIME_BUDGET',
+};
 
 function stripHtml(html) {
   if (!html) return '';
@@ -34,43 +38,78 @@ function normalizeMessage(raw) {
   };
 }
 
-async function listNewMessages(userId, cursor) {
+async function listNewMessages(userId, cursor, options = {}) {
   const results = [];
   let skipToken = undefined;
-  while (results.length < MAX_MESSAGES) {
-    const page = await listInbox(userId, { top: Math.min(25, MAX_MESSAGES - results.length), skipToken });
+  const maxMessages = Number.isFinite(Number(options.maxMessages)) && Number(options.maxMessages) > 0
+    ? Math.min(Math.floor(Number(options.maxMessages)), MAX_MESSAGES)
+    : MAX_MESSAGES;
+  const deadlineAt = options.deadlineAt || null;
+  let hasMore = false;
+  let timedOut = false;
+
+  while (results.length < maxMessages) {
+    if (deadlineAt && Date.now() >= Number(deadlineAt)) {
+      timedOut = true;
+      break;
+    }
+
+    const page = await listInbox(userId, { top: Math.min(25, maxMessages - results.length), skipToken });
     const messages = page.value || [];
     if (messages.length === 0) break;
     for (const msg of messages) {
       const received = msg.receivedDateTime ? new Date(msg.receivedDateTime) : null;
       if (cursor?.lastReceivedAt && received && received <= new Date(cursor.lastReceivedAt)) {
         // stop when we reached already ingested messages
-        return results;
+        return { messages: results, hasMore, timedOut };
       }
       results.push(msg);
+      if (results.length >= maxMessages) {
+        if (page['@odata.nextLink']) hasMore = true;
+        break;
+      }
     }
+    if (results.length >= maxMessages) break;
     if (!page['@odata.nextLink']) break;
     const next = page['@odata.nextLink'];
     const tokenMatch = next.match(/\$skiptoken=([^&]+)/);
     skipToken = tokenMatch ? decodeURIComponent(tokenMatch[1]) : null;
     if (!skipToken) break;
   }
-  return results;
+  return { messages: results, hasMore, timedOut };
 }
 
-async function ingestNewOutlookEmails(userId) {
+async function ingestNewOutlookEmails(userId, options = {}) {
   if (!userId) throw new Error('userId is required for Outlook ingestion');
   const cursor = await outlookSyncCursor.getByUserId(userId);
+  const deadlineAt = options.deadlineAt || null;
 
-  const rawMessages = await listNewMessages(userId, cursor);
+  const listResult = await listNewMessages(userId, cursor, options);
+  const rawMessages = listResult.messages || [];
   if (!rawMessages.length) {
-    return { ingested: 0, cursor: cursor || null, embeddings: [] };
+    const truncated = Boolean(listResult.timedOut || listResult.hasMore);
+    return {
+      ingested: 0,
+      cursor: cursor || null,
+      embeddings: [],
+      processedMessages: 0,
+      truncated,
+      truncatedReason: listResult.timedOut ? TRUNCATED_REASON.TIME_BUDGET : (listResult.hasMore ? TRUNCATED_REASON.MANUAL_CAP : undefined),
+    };
   }
 
   const normalized = rawMessages.map(normalizeMessage).filter((m) => m.plainText);
   const embeddings = [];
+  let processedMessages = 0;
+  let timedOut = Boolean(listResult.timedOut);
 
   for (const msg of normalized) {
+    if (deadlineAt && Date.now() >= Number(deadlineAt)) {
+      timedOut = true;
+      break;
+    }
+
+    processedMessages += 1;
     const combined = [msg.subject ? `Subject: ${msg.subject}` : null, msg.plainText].filter(Boolean).join('\n');
     const safeText = combined.length > SUMMARY_INPUT_MAX_CHARS ? combined.slice(0, SUMMARY_INPUT_MAX_CHARS) : combined;
     let summary = '';
@@ -99,14 +138,23 @@ async function ingestNewOutlookEmails(userId) {
 
   const stored = await emailEmbeddings.upsertMany(userId, embeddings);
 
-  const newest = normalized[0]; // list is sorted desc by receivedDateTime
-  await outlookSyncCursor.upsertCursor({
-    userId,
-    lastReceivedAt: newest.sentAt || cursor?.lastReceivedAt || null,
-    lastMessageId: newest.outlookMessageId,
-  });
+  if (normalized[0]) {
+    const newest = normalized[0]; // list is sorted desc by receivedDateTime
+    await outlookSyncCursor.upsertCursor({
+      userId,
+      lastReceivedAt: newest.sentAt || cursor?.lastReceivedAt || null,
+      lastMessageId: newest.outlookMessageId,
+    });
+  }
 
-  return { ingested: stored.length, embeddings: stored };
+  const truncated = Boolean(timedOut || listResult.hasMore);
+  return {
+    ingested: stored.length,
+    embeddings: stored,
+    processedMessages,
+    truncated,
+    truncatedReason: timedOut ? TRUNCATED_REASON.TIME_BUDGET : (listResult.hasMore ? TRUNCATED_REASON.MANUAL_CAP : undefined),
+  };
 }
 
 module.exports = {

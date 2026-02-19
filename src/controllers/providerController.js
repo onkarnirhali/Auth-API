@@ -1,15 +1,13 @@
 'use strict';
 
-const gmailTokens = require('../models/gmailTokenModel');
-const outlookTokens = require('../models/outlookTokenModel');
 const { logEventSafe } = require('../services/eventService');
 const {
   listPolicies,
   connectProviderPolicy,
-  disconnectProviderPolicy,
   toggleProviderIngestPolicy,
   normalizeProvider,
 } = require('../services/providerConnection/providerConnectionService');
+const { disconnectProviderForUser } = require('../services/providerConnection/providerDisconnectService');
 
 const PROVIDER_DISPLAY = {
   gmail: 'Gmail',
@@ -67,29 +65,14 @@ async function disconnectProvider(req, res) {
   const provider = (req.params.provider || '').toLowerCase();
   if (!provider) return res.status(400).json({ error: 'provider is required' });
   try {
-    const normalized = normalizeProvider(provider);
-    if (normalized === 'outlook') {
-      try {
-        await outlookTokens.removeByUserId(req.user.id);
-      } catch (_) {}
-    }
-    if (normalized === 'gmail') {
-      try {
-        await gmailTokens.removeByUserId(req.user.id);
-      } catch (_) {}
-    }
-    const updated = await disconnectProviderPolicy(req.user.id, normalized);
-    await logEventSafe({
-      type: 'provider.disconnected',
-      userId: req.user.id,
+    const updated = await disconnectProviderForUser(req.user.id, provider, {
       requestId: req.id,
       ipAddress: req.ip,
       userAgent: req.get('user-agent'),
       source: 'api',
-      metadata: {
-        provider: normalized,
-        ingestEnabled: updated.ingestEnabled,
-      },
+      automatic: false,
+      reason: 'manual',
+      markReconnectRequired: false,
     });
     res.json({ provider: toResponse(updated) });
   } catch (err) {

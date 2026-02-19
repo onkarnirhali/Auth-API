@@ -14,6 +14,10 @@ const EXCLUDE_LABEL_IDS = process.env.AI_GMAIL_EXCLUDE_LABELS || 'CATEGORY_PROMO
 const SINGLE_EMAIL_SUMMARY_WORDS = Number(process.env.AI_EMAIL_SUMMARY_MAX_WORDS_SINGLE || 300) || 300;
 const THREAD_SUMMARY_WORDS = Number(process.env.AI_EMAIL_SUMMARY_MAX_WORDS_THREAD || 1000) || 1000;
 const SUMMARY_INPUT_MAX_CHARS = Number(process.env.AI_SUMMARY_MAX_INPUT_CHARS || 12000) || 12000;
+const TRUNCATED_REASON = {
+  MANUAL_CAP: 'MANUAL_CAP',
+  TIME_BUDGET: 'TIME_BUDGET',
+};
 
 function buildAfterQuery(cursor) {
   if (cursor?.lastInternalDateMs) {
@@ -26,10 +30,21 @@ function buildAfterQuery(cursor) {
   return `after:${afterSeconds}`;
 }
 
-async function listMessageIds(gmail, query, maxMessages) {
+function isDeadlineExceeded(deadlineAt) {
+  return Boolean(deadlineAt && Date.now() >= Number(deadlineAt));
+}
+
+async function listMessageIds(gmail, query, maxMessages, options = {}) {
   const ids = [];
   let pageToken = undefined;
+  let hasMore = false;
+  let timedOut = false;
   while (ids.length < maxMessages) {
+    if (isDeadlineExceeded(options.deadlineAt)) {
+      timedOut = true;
+      break;
+    }
+
     const exclusions = (EXCLUDE_CATEGORIES || '')
       .split(',')
       .map((c) => c.trim())
@@ -48,10 +63,14 @@ async function listMessageIds(gmail, query, maxMessages) {
     });
     const batch = data?.messages || [];
     ids.push(...batch.map((m) => m.id));
+    if (ids.length >= maxMessages && data?.nextPageToken) {
+      hasMore = true;
+      break;
+    }
     if (!data?.nextPageToken || batch.length === 0) break;
     pageToken = data.nextPageToken;
   }
-  return ids;
+  return { ids, hasMore, timedOut };
 }
 
 async function fetchMessage(gmail, id) {
@@ -66,22 +85,41 @@ async function fetchMessage(gmail, id) {
 async function ingestNewEmailsForUser(userId, options = {}) {
   const { gmail } = await getAuthorizedGmail(userId);
   const cursor = await gmailSyncCursor.getByUserId(userId);
-  const maxMessages = Math.min(options.maxMessages || MAX_MESSAGES, MAX_MESSAGES);
+  const requestedMaxMessages = Number(options.maxMessages);
+  const maxMessages = Number.isFinite(requestedMaxMessages) && requestedMaxMessages > 0
+    ? Math.min(Math.floor(requestedMaxMessages), MAX_MESSAGES)
+    : MAX_MESSAGES;
   const query = buildAfterQuery(cursor);
+  const deadlineAt = options.deadlineAt || null;
 
-  const messageIds = await listMessageIds(gmail, query, maxMessages);
+  const listResult = await listMessageIds(gmail, query, maxMessages, { deadlineAt });
+  const messageIds = listResult.ids;
   if (messageIds.length === 0) {
-    return { ingested: 0, cursor: cursor || null, embeddings: [] };
+    const truncated = Boolean(listResult.timedOut || listResult.hasMore);
+    return {
+      ingested: 0,
+      cursor: cursor || null,
+      embeddings: [],
+      processedMessages: 0,
+      truncated,
+      truncatedReason: listResult.timedOut ? TRUNCATED_REASON.TIME_BUDGET : (listResult.hasMore ? TRUNCATED_REASON.MANUAL_CAP : undefined),
+    };
   }
 
   // Fetch + parse messages and track newest internal date for cursor advancement
   const parsedArray = [];
   let newestInternalMs = cursor?.lastInternalDateMs || 0;
   let newestId = cursor?.lastGmailMessageId || null;
+  let timedOut = Boolean(listResult.timedOut);
 
   const excludedLabels = (EXCLUDE_LABEL_IDS || '').split(',').map((s) => s.trim()).filter(Boolean);
 
   for (const id of messageIds) {
+    if (isDeadlineExceeded(deadlineAt)) {
+      timedOut = true;
+      break;
+    }
+
     try {
       const message = await fetchMessage(gmail, id);
       const labels = message?.labelIds || [];
@@ -109,6 +147,11 @@ async function ingestNewEmailsForUser(userId, options = {}) {
   }
 
   for (const bucket of threadBuckets.values()) {
+    if (isDeadlineExceeded(deadlineAt)) {
+      timedOut = true;
+      break;
+    }
+
     const isThread = bucket.length > 1;
     const maxWords = isThread ? THREAD_SUMMARY_WORDS : SINGLE_EMAIL_SUMMARY_WORDS;
     const combinedText = bucket
@@ -133,6 +176,10 @@ async function ingestNewEmailsForUser(userId, options = {}) {
     const summaryText = summary || safeCombinedText;
 
     for (const msg of bucket) {
+      if (isDeadlineExceeded(deadlineAt)) {
+        timedOut = true;
+        break;
+      }
       try {
         const embedded = await embedTextWithUsage(summaryText, {
           userId,
@@ -172,7 +219,15 @@ async function ingestNewEmailsForUser(userId, options = {}) {
     });
   }
 
-  return { ingested: saved.length, cursor: cursor || null, embeddings: saved };
+  const truncated = Boolean(timedOut || listResult.hasMore);
+  return {
+    ingested: saved.length,
+    cursor: cursor || null,
+    embeddings: saved,
+    processedMessages: parsedArray.length,
+    truncated,
+    truncatedReason: timedOut ? TRUNCATED_REASON.TIME_BUDGET : (listResult.hasMore ? TRUNCATED_REASON.MANUAL_CAP : undefined),
+  };
 }
 
 module.exports = {

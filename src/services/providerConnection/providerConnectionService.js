@@ -5,6 +5,7 @@ const gmailTokens = require('../../models/gmailTokenModel');
 const outlookTokens = require('../../models/outlookTokenModel');
 
 const SUPPORTED_PROVIDERS = ['gmail', 'outlook'];
+const RECONNECT_METADATA_KEYS = ['reconnectRequired', 'reconnectReason', 'reconnectRequiredAt'];
 
 function normalizeProvider(provider) {
   const value = String(provider || '').trim().toLowerCase();
@@ -38,6 +39,22 @@ function toPolicy(link) {
 
 function sortPolicies(policies) {
   return [...policies].sort((a, b) => SUPPORTED_PROVIDERS.indexOf(a.provider) - SUPPORTED_PROVIDERS.indexOf(b.provider));
+}
+
+function mergeMetadata(currentMetadata, overrides, options = {}) {
+  const merged = {
+    ...(currentMetadata || {}),
+    ...(overrides || {}),
+  };
+
+  const removeKeys = new Set(Array.isArray(options.removeMetadataKeys) ? options.removeMetadataKeys : []);
+  if (options.clearReconnectMetadata) {
+    for (const key of RECONNECT_METADATA_KEYS) removeKeys.add(key);
+  }
+  for (const key of removeKeys) {
+    delete merged[key];
+  }
+  return merged;
 }
 
 function shouldBackfillFromToken(policy) {
@@ -163,10 +180,7 @@ async function connectProviderPolicy(userId, provider, options = {}) {
     provider: normalized,
     linked: true,
     ingestEnabled: true,
-    metadata: {
-      ...(current.metadata || {}),
-      ...(options.metadata || {}),
-    },
+    metadata: mergeMetadata(current.metadata, options.metadata, { clearReconnectMetadata: true }),
     lastLinkedAt: options.lastLinkedAt || new Date(),
     lastSyncAt: current.lastSyncAt || null,
   });
@@ -174,7 +188,7 @@ async function connectProviderPolicy(userId, provider, options = {}) {
   return toPolicy(updated);
 }
 
-async function disconnectProviderPolicy(userId, provider) {
+async function disconnectProviderPolicy(userId, provider, options = {}) {
   const normalized = normalizeProvider(provider);
   const currentPolicies = await ensurePolicies(userId);
   const current = findPolicy(currentPolicies, normalized);
@@ -184,7 +198,10 @@ async function disconnectProviderPolicy(userId, provider) {
     provider: normalized,
     linked: false,
     ingestEnabled: false,
-    metadata: current.metadata || {},
+    metadata: mergeMetadata(current.metadata, options.metadata, {
+      clearReconnectMetadata: Boolean(options.clearReconnectMetadata),
+      removeMetadataKeys: options.removeMetadataKeys,
+    }),
     lastLinkedAt: current.lastLinkedAt || null,
     lastSyncAt: current.lastSyncAt || null,
   });
@@ -204,7 +221,7 @@ async function toggleProviderIngestPolicy(userId, provider, ingestEnabled) {
     provider: normalized,
     linked: nextLinked,
     ingestEnabled: nextIngest,
-    metadata: current.metadata || {},
+    metadata: mergeMetadata(current.metadata, null, { clearReconnectMetadata: nextIngest }),
     lastLinkedAt: nextLinked ? (current.lastLinkedAt || new Date()) : current.lastLinkedAt || null,
     lastSyncAt: current.lastSyncAt || null,
   });

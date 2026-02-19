@@ -20,5 +20,5 @@
 
 ## Deferred Follow-ups
 
-- [ ] GOV-FOLLOWUP-001: Enable branch protection and require `governance-check / governance` on the default branch in GitHub.
-- [ ] GOV-FOLLOWUP-002: Verify required status checks are enforced before merge for all protected branches.
+- [ ] GOV-FOLLOWUP-001: Enable branch protection and require governance-check / governance on the default branch. See docs/agents/GOVERNANCE_FOLLOWUPS.md.
+- [ ] GOV-FOLLOWUP-002: Verify required status checks are enforced before merge for all protected branches by running tools/agents/configure-branch-protection.ps1 -VerifyOnly.

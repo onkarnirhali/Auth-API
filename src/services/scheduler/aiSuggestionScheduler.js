@@ -18,7 +18,10 @@ async function runTick() {
     const ids = await users.listAllIds();
     for (const userId of ids) {
       try {
-        await refreshSuggestionsForUser(userId, { maxMessages: Number(process.env.AI_GMAIL_MAX_MESSAGES) || undefined });
+        await refreshSuggestionsForUser(userId, {
+          maxMessages: Number(process.env.AI_GMAIL_MAX_MESSAGES) || undefined,
+          source: 'scheduler',
+        });
       } catch (err) {
         console.error('Scheduler failed refreshing suggestions', { userId, error: err?.message });
       }

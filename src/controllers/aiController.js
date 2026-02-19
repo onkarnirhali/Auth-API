@@ -3,10 +3,13 @@
 const { rephraseDescription } = require('../services/ai/textService');
 const { AiProviderError } = require('../services/ai/errors');
 const aiSuggestions = require('../models/aiSuggestionModel');
-const { refreshSuggestionsForUser } = require('../services/suggestions/suggestionPipeline');
+const {
+  refreshSuggestionsForUser,
+  scheduleManualRefreshForUser,
+} = require('../services/suggestions/suggestionPipeline');
 const { enrichSuggestionSource, enrichSuggestionsWithSource } = require('../services/suggestions/suggestionSource');
 const { getTaskHistoryStats, isTaskHistoryEligible } = require('../services/suggestions/taskHistorySuggestionService');
-const { resolveSuggestionEligibility } = require('../services/suggestions/suggestionEligibilityService');
+const { resolveSuggestionSourcePolicy, buildSuggestionContext } = require('../services/suggestions/suggestionSourcePolicyService');
 const { logEventSafe } = require('../services/eventService');
 
 // Rephrase a todo description using the configured LLM provider
@@ -39,16 +42,15 @@ async function listSuggestions(req, res) {
       status: req.query.status || 'suggested',
     });
     const stats = await getTaskHistoryStats(req.user.id);
-    const { eligibility } = await resolveSuggestionEligibility(req.user.id, {
+    const sourcePolicy = await resolveSuggestionSourcePolicy(req.user.id);
+    const context = buildSuggestionContext({
+      mode: sourcePolicy.mode,
+      hasSuggestions: suggestions.length > 0,
       historyReady: isTaskHistoryEligible(stats),
     });
-    const reasonCode = suggestions.length === 0 ? eligibility.reasonCode : undefined;
     res.json({
       suggestions: suggestions.map((item) => enrichSuggestionSource(item)),
-      context: {
-        mode: eligibility.mode,
-        ...(reasonCode ? { reasonCode } : {}),
-      },
+      context,
     });
   } catch (err) {
     console.error('Failed to list suggestions', err);
@@ -59,16 +61,71 @@ async function listSuggestions(req, res) {
 // Force ingest + retrieval + generation pipeline for the current user
 async function refreshSuggestions(req, res) {
   try {
+    const rawMaxMessages = Number(req.body?.maxMessages);
+    const maxMessages = Number.isFinite(rawMaxMessages) && rawMaxMessages > 0
+      ? Math.min(Math.floor(rawMaxMessages), 50)
+      : 5;
+
+    const rawTimeBudgetMs = Number(req.body?.timeBudgetMs);
+    const timeBudgetMs = Number.isFinite(rawTimeBudgetMs)
+      ? Math.min(Math.max(Math.floor(rawTimeBudgetMs), 1000), 120000)
+      : 12000;
+
+    // Default manual refresh is synchronous; async-only is now opt-in via explicit env.
+    const manualAsyncOnly = ['1', 'true', 'yes', 'on'].includes(
+      String(process.env.AI_MANUAL_REFRESH_ASYNC_ONLY || '').trim().toLowerCase()
+    );
+    if (manualAsyncOnly) {
+      const scheduleState = scheduleManualRefreshForUser(req.user.id, {
+        maxMessages: 50,
+        requestId: req.id,
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent'),
+      });
+      const catchUpScheduled = scheduleState === 'scheduled';
+
+      const suggestions = await aiSuggestions.listByUser(req.user.id, {
+        limit: Number(req.query.limit) || 20,
+        status: req.query.status || 'suggested',
+      });
+      const stats = await getTaskHistoryStats(req.user.id);
+      const sourcePolicy = await resolveSuggestionSourcePolicy(req.user.id);
+      const context = buildSuggestionContext({
+        mode: sourcePolicy.mode,
+        hasSuggestions: suggestions.length > 0,
+        historyReady: isTaskHistoryEligible(stats),
+      });
+
+      return res.json({
+        suggestions: suggestions.map((item) => enrichSuggestionSource(item)),
+        context,
+        refresh: {
+          partial: true,
+          limitedBy: 'TIME_BUDGET',
+          catchUpScheduled,
+          scheduleState,
+          processedMessages: 0,
+          preservedExisting: false,
+        },
+        ingested: { gmail: null, outlook: null },
+        contextsUsed: 0,
+      });
+    }
+
     const result = await refreshSuggestionsForUser(req.user.id, {
-      maxMessages: req.body?.maxMessages,
+      maxMessages,
+      timeBudgetMs,
+      refreshMode: 'manual',
       requestId: req.id,
       ipAddress: req.ip,
       userAgent: req.get('user-agent'),
       source: 'manual',
+      preserveExistingOnEmpty: true,
     });
     res.json({
       suggestions: enrichSuggestionsWithSource(result.suggestions, result.contexts),
       context: result.context,
+      refresh: result.refresh,
       ingested: result.ingested,
       contextsUsed: result.contexts?.length || 0,
     });

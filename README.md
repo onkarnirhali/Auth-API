@@ -50,6 +50,10 @@ AI_SUGGESTION_MAX_RESULTS=8
 AI_EMAIL_MAX_CHARS=4000
 AI_GMAIL_MAX_MESSAGES=50
 AI_GMAIL_LOOKBACK_DAYS=30
+AI_MANUAL_REFRESH_ASYNC_ONLY=0
+AI_MANUAL_CATCHUP_MAX_MESSAGES=50
+AI_MANUAL_CATCHUP_LOCK_TTL_MS=600000
+AI_SUGGESTION_PRESERVE_LIMIT=20
 MS_CLIENT_ID=
 MS_CLIENT_SECRET=
 MS_REDIRECT_URI=http://localhost:4000/auth/outlook/callback
@@ -142,6 +146,12 @@ Token usage metrics are split into generation vs. embedding based on `ai.tokens.
 - Pipeline: Gmail sync (incremental per-user cursor) → plaintext cleaning → embeddings → pgvector similarity → LLM JSON suggestions → persisted in `ai_suggestions`.
 - Providers: OpenAI or Ollama for both embeddings and generation (config via env above).
 - Scheduler: background refresh controlled by `AI_SUGGESTION_REFRESH_INTERVAL_MS` and `AI_SUGGESTION_SCHEDULER_ENABLED`.
+- Suggestion source policy uses legacy fallback: provider link state is authoritative when present, otherwise Gmail/Outlook token presence enables ingestion for that provider.
+- Invalid JSON from AI generation no longer hard-fails refresh when fallback is possible; the pipeline falls back to task-history or preserved existing suggestions and reports refresh fallback metadata.
+- Manual refresh defaults to synchronous bounded mode (5 messages, 12s budget) to reduce gateway timeout risk.
+- `AI_MANUAL_REFRESH_ASYNC_ONLY=1` is explicit opt-in for cache-first async refresh behavior.
+- Catch-up lock safety uses `AI_MANUAL_CATCHUP_LOCK_TTL_MS` (default 10 minutes) and cap uses `AI_MANUAL_CATCHUP_MAX_MESSAGES`.
+- Empty refresh protection preserves prior suggestions when no new suggestions are generated (`AI_SUGGESTION_PRESERVE_LIMIT` controls preserved list size).
 - Data: plaintext only (HTML stripped); embeddings in `email_embeddings`; cursor in `gmail_sync_cursors`; suggestions separate from todos in `ai_suggestions`.
 
 ## Local Run
