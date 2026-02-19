@@ -1,6 +1,85 @@
 const isString = (v) => typeof v === 'string';
 const isNonEmpty = (s) => isString(s) && s.trim().length > 0;
 const inSet = (v, set) => set.includes(v);
+const isObject = (v) => v && typeof v === 'object' && !Array.isArray(v);
+
+function parseNotesPayload(raw, errors) {
+  if (raw === undefined) return undefined;
+  if (!isObject(raw)) {
+    errors.push({ path: 'notes', message: 'must be an object' });
+    return undefined;
+  }
+
+  const out = {};
+  if (raw.linkedNoteIds !== undefined) {
+    if (!Array.isArray(raw.linkedNoteIds)) {
+      errors.push({ path: 'notes.linkedNoteIds', message: 'must be an array of note ids' });
+    } else {
+      const ids = [];
+      for (const [idx, value] of raw.linkedNoteIds.entries()) {
+        const parsed = Number(value);
+        if (!Number.isFinite(parsed) || parsed <= 0) {
+          errors.push({ path: `notes.linkedNoteIds[${idx}]`, message: 'must be a positive number' });
+          continue;
+        }
+        ids.push(parsed);
+      }
+      out.linkedNoteIds = Array.from(new Set(ids));
+    }
+  }
+
+  if (raw.newNotes !== undefined) {
+    if (!Array.isArray(raw.newNotes)) {
+      errors.push({ path: 'notes.newNotes', message: 'must be an array' });
+    } else {
+      out.newNotes = [];
+      for (const [idx, note] of raw.newNotes.entries()) {
+        if (!isObject(note)) {
+          errors.push({ path: `notes.newNotes[${idx}]`, message: 'must be an object' });
+          continue;
+        }
+        if (!isNonEmpty(note.title)) {
+          errors.push({ path: `notes.newNotes[${idx}].title`, message: 'title is required' });
+          continue;
+        }
+        if (isString(note.title) && note.title.length > 200) {
+          errors.push({ path: `notes.newNotes[${idx}].title`, message: 'max length 200' });
+        }
+        if (!isObject(note.content)) {
+          errors.push({ path: `notes.newNotes[${idx}].content`, message: 'content must be object JSON' });
+          continue;
+        }
+
+        const normalized = {
+          title: note.title,
+          content: note.content,
+        };
+
+        if (note.passwordProtection !== undefined) {
+          if (!isObject(note.passwordProtection)) {
+            errors.push({ path: `notes.newNotes[${idx}].passwordProtection`, message: 'must be object' });
+          } else if (note.passwordProtection.enabled !== true && note.passwordProtection.enabled !== false) {
+            errors.push({ path: `notes.newNotes[${idx}].passwordProtection.enabled`, message: 'must be boolean' });
+          } else {
+            const protection = { enabled: note.passwordProtection.enabled };
+            if (note.passwordProtection.enabled === true) {
+              if (!isString(note.passwordProtection.password) || note.passwordProtection.password.length < 6) {
+                errors.push({ path: `notes.newNotes[${idx}].passwordProtection.password`, message: 'must be at least 6 chars' });
+              } else {
+                protection.password = note.passwordProtection.password;
+              }
+            }
+            normalized.passwordProtection = protection;
+          }
+        }
+
+        out.newNotes.push(normalized);
+      }
+    }
+  }
+
+  return out;
+}
 
 function validateCreate(req) {
   const b = req.body || {};
@@ -22,12 +101,15 @@ function validateCreate(req) {
     if (isNaN(d.getTime())) errors.push({ path: 'dueDate', message: 'must be ISO date or null' });
   }
 
+  const notes = parseNotesPayload(b.notes, errors);
+
   const value = { body: {
     title: b.title,
     description: b.description ?? null,
     status: b.status ?? 'pending',
     priority: b.priority ?? 'normal',
     dueDate: b.dueDate ?? null,
+    ...(notes !== undefined ? { notes } : {}),
   }};
 
   return { errors, value };
@@ -64,6 +146,9 @@ function validateUpdate(req) {
     }
     out.dueDate = b.dueDate;
   }
+
+  const notes = parseNotesPayload(b.notes, errors);
+  if (notes !== undefined) out.notes = notes;
 
   return { errors, value: { body: out } };
 }

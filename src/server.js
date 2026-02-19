@@ -11,6 +11,7 @@ const helmet = require('helmet');
 const compression = require('compression');
 const authRoutes = require('./routes/authRoutes');
 const todoRoutes = require('./routes/todoRoutes');
+const noteRoutes = require('./routes/noteRoutes');
 const aiRoutes = require('./routes/aiRoutes');
 const meRoutes = require('./routes/meRoutes');
 const outlookRoutes = require('./routes/outlookRoutes');
@@ -96,6 +97,7 @@ app.use(passport.initialize());
 // Routes
 app.use('/auth', authRoutes);
 app.use('/api/todos', todoRoutes);
+app.use('/api/notes', noteRoutes);
 app.use('/ai', aiRoutes);
 app.use('/me', meRoutes);
 app.use('/outlook', outlookRoutes);

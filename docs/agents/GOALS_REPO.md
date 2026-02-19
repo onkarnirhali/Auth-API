@@ -8,7 +8,8 @@
 | API-ALPHA-003 | G-ALPHA-004 | P1 | Alpha | completed | api | Suggestion payload supports source labels for UI. |
 | API-BETA-001 | G-BETA-001 | P0 | Beta | planned | api | Privacy retention and delete/export controls are implemented. |
 | API-BETA-002 | G-BETA-003 | P0 | Beta | planned | api | Stripe subscriptions and usage entitlement checks are live. |
-| API-BETA-003 | G-BETA-002 | P1 | Beta | planned | api | Note taker and OCR backend contracts are available. |
+| API-BETA-003 | G-BETA-002 | P1 | Beta | planned | api | Note taker backend contracts are available (OCR deferred to mobile phase). |
+| API-FINAL-003 | G-FINAL-001 | P1 | Final | planned | api | Mobile-facing OCR note extraction and usage-control backend contracts are available. |
 | API-FINAL-001 | G-FINAL-002 | P1 | Final | planned | api | TypeScript migration reaches target modules. |
 | API-FINAL-002 | G-FINAL-003 | P0 | Final | planned | platform | API and background jobs support 10k peak load profile. |
 

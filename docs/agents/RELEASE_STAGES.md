@@ -17,6 +17,7 @@
 
 - API-FINAL-001
 - API-FINAL-002
+- API-FINAL-003
 
 ## Deferred Follow-ups
 

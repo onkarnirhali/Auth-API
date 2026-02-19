@@ -7,6 +7,7 @@ Lightweight Node.js authentication API using Express, Google OAuth (Passport), c
 - HTTP-only cookies for access/refresh tokens, rotation + revocation in Postgres
 - Basic hardening: Helmet, CORS, compression, request IDs, HTTPS redirect (prod)
 - Todos API under `/api/todos/*`
+- Notes API under `/api/notes/*`
 - AI Gmail suggestions via RAG (pgvector + LLM) with background refresh
 - Health check: `/healthz`
 
@@ -224,18 +225,31 @@ Note: Migrations are ordered by timestamp and all pending run when you migrate. 
 - `POST /api/todos` - create (see `events/api-todos-post.json`)
 - `PATCH /api/todos/:id` - update (see `events/api-todos-patch.json`)
 - `DELETE /api/todos/:id` - delete
+- `GET /api/notes` - list (supports `q`, `limit`, `offset`, and returns persisted `viewMode`)
+- `PATCH /api/notes/preferences` - save note view preference (`list` or `grid`)
+- `POST /api/notes` - create standalone note
+- `GET /api/notes/:id` - fetch note detail shell (protected notes require unlock)
+- `POST /api/notes/:id/open` - verify password and return protected note content
+- `PATCH /api/notes/:id` - update title/content/protection
+- `DELETE /api/notes/:id` - delete note (`?force=true` to confirm linked-task unlink)
 - `GET /healthz` - health check (DB ping)
 - `GET /ai/suggestions` - list AI suggestions (auth required)
 - `POST /ai/suggestions/refresh` - ingest Gmail + regenerate suggestions (auth required)
 - `POST /ai/suggestions/:id/accept` - mark suggestion accepted (auth required)
 - `POST /ai/suggestions/:id/dismiss` - dismiss one suggestion (auth required)
 - `POST /ai/suggestions/dismiss` - dismiss suggestions in bulk (auth required)
+- `GET /me/privacy/export` - export current user data snapshot (auth required)
+- `POST /me/privacy/delete` - delete account and user-owned data; body must include `{ "confirmation": "DELETE" }` (auth required)
 
 ## Validation & Rate Limiting
 - Todos inputs validated with lightweight middleware (422 on invalid).
+- Notes inputs validated with lightweight middleware (422 on invalid).
 - Auth refresh/logout are rate limited (defaults: 10 req/min per IP). Tune with env:
   - `RL_REFRESH_WINDOW_MS`, `RL_REFRESH_MAX`
   - `RL_LOGOUT_WINDOW_MS`, `RL_LOGOUT_MAX`
+- Note unlock attempts are rate limited with:
+  - `RL_NOTE_OPEN_WINDOW_MS` (default 60000)
+  - `RL_NOTE_OPEN_MAX` (default 10)
 
 ## Postman Helpers
 Sample bodies live in `Auth-API/events/` for quick copy-paste:

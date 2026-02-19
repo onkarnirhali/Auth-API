@@ -7,6 +7,10 @@
 - [ ] Verification evidence is documented.
 - [ ] Markdown links validate with `node tools/agents/validate-governance.mjs`.
 - [ ] Scope remains within current release stage unless explicitly approved.
+- [ ] For meaningful feature changes, an approved feature spec exists in `agents-playbook/workflow/feature-specs/`.
+- [ ] Feature spec frontmatter includes `goal_id` and `status: approved`.
+- [ ] Feature spec includes click-by-click user flow, behavior coverage, and edge-case coverage.
+- [ ] Implementation and verification notes map back to the feature spec acceptance checklist.
 - [ ] API contract changes are documented in `README.md` and reflected in route/controller behavior.
 - [ ] Auth, role, and rate-limit impact has been validated for affected endpoints.
 - [ ] New or changed environment variables are documented with sane defaults.

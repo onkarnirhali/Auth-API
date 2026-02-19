@@ -9,8 +9,10 @@ async function list(req, res) {
 }
 
 async function create(req, res) {
-  const { title, description, status, priority, dueDate } = req.body;
-  const item = await todos.create(req.user.id, { title, description, status, priority, dueDate });
+  const { title, description, status, priority, dueDate, notes } = req.body;
+  const item = notes
+    ? await todos.createWithNotes(req.user.id, { title, description, status, priority, dueDate, notes })
+    : await todos.create(req.user.id, { title, description, status, priority, dueDate });
   await logEventSafe({
     type: 'todo.created',
     userId: req.user.id,
@@ -34,7 +36,9 @@ async function update(req, res) {
     ...(patch.priority !== undefined ? { priority: patch.priority } : {}),
     ...(patch.dueDate !== undefined ? { due_date: patch.dueDate } : {}),
   };
-  const item = await todos.update(req.user.id, id, normalized);
+  const item = patch.notes
+    ? await todos.updateWithNotes(req.user.id, id, normalized, patch.notes)
+    : await todos.update(req.user.id, id, normalized);
   if (!item) return sendError(req, res, 404, 'Todo not found', 'TODO_NOT_FOUND');
   if (before && before.status !== 'done' && item.status === 'done') {
     await logEventSafe({
