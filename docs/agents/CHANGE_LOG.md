@@ -14,6 +14,7 @@
 | 2026-02-18-api-provider-status-backfill | 2026-02-18 | API-ALPHA-002 | direct | Backfilled provider link policy from existing OAuth tokens for legacy users so connected Gmail/Outlook status renders correctly without overriding explicit disconnects. | npm test | approved |
 
 | 2026-02-18-governance-followup-automation | 2026-02-18 | DOC-BOOTSTRAP-001 | direct | Repaired governance markdown corruption and added branch-protection follow-up runbook plus automation script for required status checks. | node tools/agents/validate-governance.mjs; powershell PSParser syntax check for tools/agents/configure-branch-protection.ps1 | approved |
+| 2026-02-19-auth-api-docs-rephrase | 2026-02-19 | DOC-BOOTSTRAP-001 | direct | Rephrased backend governance docs with current stack, folder structure, quality guardrails, and cross-references; refreshed architecture map in authApi.md. | node tools/agents/validate-governance.mjs | approved |
 
 ## Change Entry Contract
 

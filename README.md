@@ -59,7 +59,7 @@ MS_CLIENT_SECRET=
 MS_REDIRECT_URI=http://localhost:4000/auth/outlook/callback
 MS_TENANT=common
 MS_TOKEN_ENC_KEY= # 32-byte base64 (e.g., openssl rand -base64 32)
-MS_GRAPH_SCOPES=\"openid profile email offline_access https://graph.microsoft.com/Mail.Read https://graph.microsoft.com/Calendars.Read\"
+MS_GRAPH_SCOPES="openid profile email offline_access https://graph.microsoft.com/Mail.Read https://graph.microsoft.com/Calendars.Read"
 USER_LAST_ACTIVE_MINUTES=5
 ```
 
@@ -142,7 +142,7 @@ Token usage metrics are split into generation vs. embedding based on `ai.tokens.
 - Errors from the provider respond with HTTP 502; missing descriptions return HTTP 400.
 
 ### AI Gmail suggestions (RAG)
-- Endpoints: `GET /ai/suggestions`, `POST /ai/suggestions/refresh`, optional `POST /ai/suggestions/:id/accept` (all require auth).
+- Endpoints: `GET /ai/suggestions`, `POST /ai/suggestions/refresh`, `POST /ai/suggestions/:id/accept`, `POST /ai/suggestions/:id/dismiss`, and `POST /ai/suggestions/dismiss` (all require auth).
 - Pipeline: Gmail sync (incremental per-user cursor) → plaintext cleaning → embeddings → pgvector similarity → LLM JSON suggestions → persisted in `ai_suggestions`.
 - Providers: OpenAI or Ollama for both embeddings and generation (config via env above).
 - Scheduler: background refresh controlled by `AI_SUGGESTION_REFRESH_INTERVAL_MS` and `AI_SUGGESTION_SCHEDULER_ENABLED`.
@@ -216,7 +216,7 @@ Note: Migrations are ordered by timestamp and all pending run when you migrate. 
 
 ## Routes
 - `GET /auth/google` - redirect to Google OAuth
-- `GET /auth/google/callback` - sets cookies, returns `{ success: true }`
+- `GET /auth/google/callback` - sets cookies and typically redirects to frontend; falls back to `{ success: true }` JSON when no allowed redirect base is configured
 - `GET/POST /auth/refresh` - rotates refresh token, issues new access token
 - `GET/POST /auth/logout` - revokes current refresh token, clears cookies
 - `GET /auth/me` - current user
@@ -228,6 +228,8 @@ Note: Migrations are ordered by timestamp and all pending run when you migrate. 
 - `GET /ai/suggestions` - list AI suggestions (auth required)
 - `POST /ai/suggestions/refresh` - ingest Gmail + regenerate suggestions (auth required)
 - `POST /ai/suggestions/:id/accept` - mark suggestion accepted (auth required)
+- `POST /ai/suggestions/:id/dismiss` - dismiss one suggestion (auth required)
+- `POST /ai/suggestions/dismiss` - dismiss suggestions in bulk (auth required)
 
 ## Validation & Rate Limiting
 - Todos inputs validated with lightweight middleware (422 on invalid).
