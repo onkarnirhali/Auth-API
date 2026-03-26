@@ -1,10 +1,10 @@
 'use strict';
 
 jest.mock('../src/services/ai/index', () => ({
-  generateText: jest.fn(),
+  generateStructured: jest.fn(),
 }));
 
-const { generateText } = require('../src/services/ai/index');
+const { generateStructured } = require('../src/services/ai/index');
 const { generateSuggestionsFromContexts } = require('../src/services/ai/suggestionGenerator');
 
 describe('suggestion generator', () => {
@@ -12,31 +12,82 @@ describe('suggestion generator', () => {
     jest.resetAllMocks();
   });
 
-  test('returns normalized suggestions from valid JSON', async () => {
-    generateText.mockResolvedValue({
-      text: JSON.stringify({
+  test('returns normalized suggestions from valid structured output', async () => {
+    generateStructured.mockResolvedValue({
+      parsed: {
         suggestions: [
           {
-            title: 'Reply to Rahul about proposal',
+            title: '  Reply to Rahul about proposal  ',
             detail: 'Send the updated deck today',
             sourceMessageIds: ['m1'],
             confidence: 0.82,
           },
         ],
-      }),
+      },
+      usage: null,
+      provider: 'openai',
+      model: 'gpt-4o-mini',
     });
 
     const contexts = [{ gmailMessageId: 'm1', subject: 'Proposal', plainText: 'Please reply' }];
     const suggestions = await generateSuggestionsFromContexts(contexts);
     expect(suggestions).toHaveLength(1);
-    expect(suggestions[0].title).toMatch(/Reply to Rahul/);
+    expect(suggestions[0].title).toBe('Reply to Rahul about proposal');
     expect(suggestions[0].confidence).toBeCloseTo(0.82);
     expect(suggestions[0].sourceMessageIds).toContain('m1');
+    expect(suggestions[0].metadata).toEqual(
+      expect.objectContaining({
+        schemaName: 'ai_email_suggestions_v1',
+        schemaVersion: 1,
+      })
+    );
   });
 
-  test('throws when AI response is not JSON', async () => {
-    generateText.mockResolvedValue({ text: 'not json' });
-    const contexts = [{ gmailMessageId: 'm1', subject: 'X', plainText: 'Body' }];
-    await expect(generateSuggestionsFromContexts(contexts)).rejects.toThrow('AI response was not valid JSON');
+  test('throws when suggestion references an unknown message id', async () => {
+    generateStructured.mockResolvedValue({
+      parsed: {
+        suggestions: [
+          {
+            title: 'Reply to Rahul about proposal',
+            detail: 'Send the updated deck today',
+            sourceMessageIds: ['missing'],
+            confidence: 0.82,
+          },
+        ],
+      },
+      usage: null,
+      provider: 'openai',
+      model: 'gpt-4o-mini',
+    });
+
+    const contexts = [{ gmailMessageId: 'm1', subject: 'Proposal', plainText: 'Please reply' }];
+    await expect(generateSuggestionsFromContexts(contexts)).rejects.toMatchObject({
+      message: 'AI response failed schema validation',
+      code: 'SCHEMA_VALIDATION_FAILED',
+    });
+  });
+
+  test('throws when suggestion repeats the same source message id', async () => {
+    generateStructured.mockResolvedValue({
+      parsed: {
+        suggestions: [
+          {
+            title: 'Reply to Rahul about proposal',
+            detail: 'Send the updated deck today',
+            sourceMessageIds: ['m1', 'm1'],
+            confidence: 0.82,
+          },
+        ],
+      },
+      usage: null,
+      provider: 'openai',
+      model: 'gpt-4o-mini',
+    });
+
+    const contexts = [{ gmailMessageId: 'm1', subject: 'Proposal', plainText: 'Please reply' }];
+    await expect(generateSuggestionsFromContexts(contexts)).rejects.toMatchObject({
+      message: 'AI response failed schema validation',
+      code: 'SCHEMA_VALIDATION_FAILED',
+    });
   });
 });

@@ -6,7 +6,7 @@
     },
     {
       "description": "Filter by status",
-      "url": "/api/todos?status=pending"
+      "url": "/api/todos?status=in_progress"
     },
     {
       "description": "Search by text",

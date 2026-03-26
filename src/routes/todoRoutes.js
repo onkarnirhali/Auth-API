@@ -10,6 +10,7 @@ const router = express.Router();
 router.use(requireAuth);
 router.get('/', validationMiddleware(validateListQuery), ctrl.list);
 router.post('/', validationMiddleware((req)=>validateCreate(req)), ctrl.create);
+router.post('/reorder', ctrl.reorder);
 router.patch('/:id', validationMiddleware((req)=>validateUpdate(req)), ctrl.update);
 router.delete('/:id', ctrl.destroy);
 

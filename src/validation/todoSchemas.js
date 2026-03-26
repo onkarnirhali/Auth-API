@@ -2,6 +2,17 @@ const isString = (v) => typeof v === 'string';
 const isNonEmpty = (s) => isString(s) && s.trim().length > 0;
 const inSet = (v, set) => set.includes(v);
 const isObject = (v) => v && typeof v === 'object' && !Array.isArray(v);
+const legacyStatusAlias = {
+  pending: 'in_progress',
+};
+
+const allowedStatuses = ['todo', 'in_progress', 'done'];
+
+function normalizeStatus(status) {
+  if (legacyStatusAlias[status]) return legacyStatusAlias[status];
+  if (allowedStatuses.includes(status)) return status;
+  return null;
+}
 
 function parseNotesPayload(raw, errors) {
   if (raw === undefined) return undefined;
@@ -84,14 +95,14 @@ function parseNotesPayload(raw, errors) {
 function validateCreate(req) {
   const b = req.body || {};
   const errors = [];
+  const status = normalizeStatus(b.status ?? 'todo');
 
   if (!isNonEmpty(b.title)) errors.push({ path: 'title', message: 'title is required (1-200 chars)' });
   if (isString(b.title) && b.title.length > 200) errors.push({ path: 'title', message: 'max length 200' });
 
   if (b.description !== undefined && !isString(b.description)) errors.push({ path: 'description', message: 'must be string' });
 
-  const allowedStatus = ['pending', 'done'];
-  if (b.status !== undefined && !inSet(b.status, allowedStatus)) errors.push({ path: 'status', message: `must be one of ${allowedStatus.join(', ')}` });
+  if (b.status !== undefined && !status) errors.push({ path: 'status', message: `must be one of ${allowedStatuses.join(', ')}` });
 
   const allowedPriority = ['low', 'normal', 'high'];
   if (b.priority !== undefined && !inSet(b.priority, allowedPriority)) errors.push({ path: 'priority', message: `must be one of ${allowedPriority.join(', ')}` });
@@ -106,7 +117,7 @@ function validateCreate(req) {
   const value = { body: {
     title: b.title,
     description: b.description ?? null,
-    status: b.status ?? 'pending',
+    status,
     priority: b.priority ?? 'normal',
     dueDate: b.dueDate ?? null,
     ...(notes !== undefined ? { notes } : {}),
@@ -129,10 +140,11 @@ function validateUpdate(req) {
     if (!isString(b.description)) errors.push({ path: 'description', message: 'must be string' });
     out.description = b.description;
   }
-  const allowedStatus = ['pending', 'done'];
+  const allowedStatus = ['todo', 'in_progress', 'done'];
   if (b.status !== undefined) {
-    if (!inSet(b.status, allowedStatus)) errors.push({ path: 'status', message: `must be one of ${allowedStatus.join(', ')}` });
-    out.status = b.status;
+    const status = normalizeStatus(b.status);
+    if (!status) errors.push({ path: 'status', message: `must be one of ${allowedStatus.join(', ')}` });
+    else out.status = status;
   }
   const allowedPriority = ['low', 'normal', 'high'];
   if (b.priority !== undefined) {
@@ -158,9 +170,9 @@ function validateListQuery(req) {
   const errors = [];
   const out = {};
   if (q.status !== undefined) {
-    const allowed = ['pending', 'done'];
-    if (!inSet(q.status, allowed)) errors.push({ path: 'status', message: `must be one of ${allowed.join(', ')}` });
-    else out.status = q.status;
+    const status = normalizeStatus(q.status);
+    if (!status) errors.push({ path: 'status', message: `must be one of ${allowedStatuses.join(', ')}` });
+    else out.status = status;
   }
   if (q.q !== undefined) {
     if (!isString(q.q)) errors.push({ path: 'q', message: 'must be string' });

@@ -3,7 +3,7 @@
 // Ollama provider wrapper for text generation + embeddings via local API
 
 const axios = require('axios');
-const { AiProviderError } = require('../errors');
+const { AiProviderError, AI_GENERATION_ERROR_CODES } = require('../errors');
 const { ensurePrompt, normalizeResponse } = require('../utils');
 
 function createOllamaProvider(config) {
@@ -19,6 +19,22 @@ function createOllamaProvider(config) {
       ? promptTokens + completionTokens
       : (typeof data?.total_tokens === 'number' ? data.total_tokens : null);
     return { promptTokens, completionTokens, totalTokens };
+  }
+
+  function parseStructuredContent(rawText) {
+    const trimmed = typeof rawText === 'string' ? rawText.trim() : '';
+    if (!trimmed) return null;
+    try {
+      return JSON.parse(trimmed);
+    } catch (err) {
+      throw new AiProviderError('Ollama structured output could not be parsed', {
+        provider: 'ollama',
+        code: AI_GENERATION_ERROR_CODES.PROVIDER_ERROR,
+        metadata: {
+          rawText: trimmed.length > 2000 ? `${trimmed.slice(0, 2000)}...` : trimmed,
+        },
+      });
+    }
   }
 
   return {
@@ -42,6 +58,8 @@ function createOllamaProvider(config) {
           text,
           usage: normalizeUsage(data),
           raw: data,
+          finishReason: data?.done_reason || null,
+          refusal: null,
         });
         return { ...normalized, provider: 'ollama', model: config.model };
       } catch (err) {
@@ -50,6 +68,52 @@ function createOllamaProvider(config) {
         throw new AiProviderError(message, {
           provider: 'ollama',
           code: status || 'OLLAMA_ERROR',
+          status: err?.response?.status || null,
+          metadata: err?.response?.data || null,
+        });
+      }
+    },
+    async generateStructured({ systemPrompt, userPrompt, schema, temperature, maxTokens }) {
+      const prompt = ensurePrompt(userPrompt);
+      const messages = [];
+      if (systemPrompt) {
+        messages.push({ role: 'system', content: systemPrompt.trim() });
+      }
+      messages.push({ role: 'user', content: prompt });
+
+      try {
+        const { data } = await client.post('/api/chat', {
+          model: config.model,
+          stream: false,
+          format: schema,
+          messages,
+          options: {
+            temperature: typeof temperature === 'number' ? temperature : config.temperature,
+            ...(typeof maxTokens === 'number' ? { num_predict: maxTokens } : {}),
+          },
+        });
+        const rawText = data?.message?.content || '';
+        const finishReason = data?.done_reason || null;
+        return {
+          parsed: finishReason === 'length' ? null : parseStructuredContent(rawText),
+          rawText,
+          usage: normalizeUsage(data),
+          raw: data,
+          provider: 'ollama',
+          model: config.model,
+          finishReason,
+          refusal: null,
+          validationErrors: null,
+        };
+      } catch (err) {
+        if (err instanceof AiProviderError) {
+          throw err;
+        }
+        const status = err?.response?.status || err?.code;
+        const message = err?.response?.data?.error || err?.message || 'Ollama structured output request failed';
+        throw new AiProviderError(message, {
+          provider: 'ollama',
+          code: AI_GENERATION_ERROR_CODES.PROVIDER_ERROR,
           status: err?.response?.status || null,
           metadata: err?.response?.data || null,
         });

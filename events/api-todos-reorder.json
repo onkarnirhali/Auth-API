@@ -1,0 +1,7 @@
+{
+  "lanes": {
+    "todo": [4, 1],
+    "in_progress": [2, 5],
+    "done": [3]
+  }
+}

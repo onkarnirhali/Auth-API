@@ -1,7 +1,7 @@
 {
   "title": "My first task",
   "description": "Optional longer description for the task",
-  "status": "pending",
+  "status": "todo",
   "priority": "normal",
   "dueDate": "2025-11-01T12:00:00.000Z"
 }

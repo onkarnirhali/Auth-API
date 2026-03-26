@@ -16,11 +16,15 @@ function buildSystemPrompt(base, ctx = '') {
   return `${trimmedBase}\n\nContext:\n${trimmedCtx}`;
 }
 
-function normalizeResponse({ text, usage, raw }) {
+function normalizeResponse({ text, usage, raw, finishReason = null, refusal = null }) {
   return {
     text: (text || '').trim(),
     usage: usage || null,
     raw: raw || null,
+    rawText: (text || '').trim(),
+    finishReason,
+    refusal,
+    validationErrors: null,
   };
 }
 

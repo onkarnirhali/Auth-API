@@ -104,9 +104,9 @@ describe('suggestion pipeline', () => {
     isInvalidGrantError.mockReturnValue(false);
   });
 
-  test('falls back gracefully when generator returns invalid JSON', async () => {
+  test('falls back gracefully when generator returns schema validation failure', async () => {
     generateSuggestionsFromContextsWithUsage.mockRejectedValue(
-      new AiProviderError('AI response was not valid JSON', { code: 'INVALID_JSON' })
+      new AiProviderError('AI response failed schema validation', { code: 'SCHEMA_VALIDATION_FAILED' })
     );
 
     const result = await refreshSuggestionsForUser(123, {
@@ -115,7 +115,7 @@ describe('suggestion pipeline', () => {
     });
 
     expect(result.refresh.generationFallbackUsed).toBe(true);
-    expect(result.refresh.generationErrorCode).toBe('INVALID_JSON');
+    expect(result.refresh.generationErrorCode).toBe('SCHEMA_VALIDATION_FAILED');
     expect(result.suggestions).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ title: 'History suggestion' }),
@@ -125,7 +125,7 @@ describe('suggestion pipeline', () => {
 
   test('preserves existing suggestions when fallback yields empty merged result', async () => {
     generateSuggestionsFromContextsWithUsage.mockRejectedValue(
-      new AiProviderError('AI response was not valid JSON', { code: 'INVALID_JSON' })
+      new AiProviderError('AI provider was unavailable', { code: 'PROVIDER_ERROR', provider: 'openai' })
     );
     generateTaskHistorySuggestions.mockResolvedValue({
       historyReady: false,
@@ -141,6 +141,7 @@ describe('suggestion pipeline', () => {
     });
 
     expect(result.refresh.generationFallbackUsed).toBe(true);
+    expect(result.refresh.generationErrorCode).toBe('PROVIDER_ERROR');
     expect(result.refresh.preservedExisting).toBe(true);
     expect(result.suggestions).toEqual(
       expect.arrayContaining([

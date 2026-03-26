@@ -15,7 +15,7 @@ const { resolveSuggestionSourcePolicy, buildSuggestionContext } = require('./sug
 const { disconnectProviderForUser, isInvalidGrantError } = require('../providerConnection/providerDisconnectService');
 const { logEventSafe } = require('../eventService');
 const { logGenerationUsage } = require('../ai/tokenUsageService');
-const { AiProviderError } = require('../ai/errors');
+const { AiProviderError, AI_GENERATION_ERROR_CODES } = require('../ai/errors');
 const logger = require('../../utils/logger');
 
 const MANUAL_CATCHUP_MAX_MESSAGES = Number(process.env.AI_MANUAL_CATCHUP_MAX_MESSAGES || 50) || 50;
@@ -219,8 +219,22 @@ async function refreshSuggestionsForUser(userId, options = {}) {
   let usage = null;
   let provider = null;
   let model = null;
+  let finishReason = null;
+  let refusal = null;
   let generationFallbackUsed = false;
   let generationErrorCode = null;
+
+  await logEventSafe({
+    type: 'ai.suggestions.refresh.attempted',
+    userId,
+    requestId: options.requestId || null,
+    ipAddress: options.ipAddress || null,
+    userAgent: options.userAgent || null,
+    source: options.source || 'ai',
+    metadata: {
+      refreshMode: options.refreshMode || null,
+    },
+  });
 
   stageStart = Date.now();
   if (sourcePolicy.allowedEmailProviders.length > 0) {
@@ -239,14 +253,19 @@ async function refreshSuggestionsForUser(userId, options = {}) {
         usage = generated.usage || null;
         provider = generated.provider || null;
         model = generated.model || null;
+        finishReason = generated.finishReason || null;
+        refusal = generated.refusal || null;
       } catch (err) {
-        if (err instanceof AiProviderError && err.code === 'INVALID_JSON') {
+        const allowedCodes = new Set(Object.values(AI_GENERATION_ERROR_CODES));
+        if (err instanceof AiProviderError && allowedCodes.has(err.code)) {
           generationFallbackUsed = true;
-          generationErrorCode = 'INVALID_JSON';
+          generationErrorCode = err.code;
           emailSuggestions = [];
           usage = null;
-          provider = null;
+          provider = err.provider || null;
           model = null;
+          finishReason = err.metadata?.finishReason || null;
+          refusal = err.metadata?.refusal || null;
           await logEventSafe({
             type: 'ai.suggestions.generation.fallback',
             userId,
@@ -258,7 +277,26 @@ async function refreshSuggestionsForUser(userId, options = {}) {
               code: generationErrorCode,
               mode: sourcePolicy.mode,
               contextsUsed: contexts.length,
+              provider: provider || null,
+              upstreamMessage: err.message || null,
+              finishReason,
+              refusal,
+              validationErrors: err.metadata?.validationErrors || null,
+              schemaName: err.metadata?.schemaName || null,
+              rawText: err.metadata?.rawText || null,
             },
+          });
+          logger.error('AI suggestion structured generation failed', {
+            userId,
+            requestId: options.requestId || null,
+            source: options.source || 'ai',
+            provider: provider || null,
+            code: generationErrorCode,
+            upstreamMessage: err.message || null,
+            finishReason,
+            refusal,
+            schemaName: err.metadata?.schemaName || null,
+            validationErrors: err.metadata?.validationErrors || null,
           });
         } else {
           throw err;
@@ -374,6 +412,10 @@ async function refreshSuggestionsForUser(userId, options = {}) {
         preservedExisting: refresh.preservedExisting,
         generationFallbackUsed: refresh.generationFallbackUsed || false,
         generationErrorCode: refresh.generationErrorCode || null,
+        provider: provider || null,
+        model: model || null,
+        finishReason,
+        refusal,
       },
       timings,
     },
@@ -391,6 +433,10 @@ async function refreshSuggestionsForUser(userId, options = {}) {
     preservedExisting: refresh.preservedExisting,
     generationFallbackUsed: refresh.generationFallbackUsed || false,
     generationErrorCode: refresh.generationErrorCode || null,
+    provider: provider || null,
+    model: model || null,
+    finishReason,
+    refusal,
     timings,
   });
 
